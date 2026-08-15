@@ -9,7 +9,6 @@ import {
   redisLockKeys,
   withRedisLock,
 } from '@server/lib/redis/lock';
-import { createMessage } from '@server/lib/repositories/worldChatRepository';
 import { createSpiritSeedDetails } from '@shared/contracts/herbGarden';
 import {
   BASE_PRICES,
