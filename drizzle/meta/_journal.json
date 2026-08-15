@@ -225,6 +225,13 @@
       "when": 1786799951787,
       "tag": "0031_remove_legacy_herb_garden",
       "breakpoints": true
+    },
+    {
+      "idx": 32,
+      "version": "7",
+      "when": 1786802694699,
+      "tag": "0032_remove_legacy_herb_garden_facilities",
+      "breakpoints": true
     }
   ]
 }
