@@ -1,6 +1,7 @@
 import { createSpiritSeedDetails } from '@shared/contracts/herbGarden';
 import type { GeneratedMaterial } from '@shared/engine/material/creation/types';
 import type { ElementType, Quality } from '@shared/types/constants';
+import type { Material } from '@shared/types/cultivator';
 
 const SEED_NAMES = [
   '青霄灵籽',
@@ -61,9 +62,9 @@ export function createSpiritSeedMaterial(input: {
 }
 
 export function normalizeGeneratedSeed(
-  material: GeneratedMaterial,
+  material: Material,
   source?: Parameters<typeof createSpiritSeedMaterial>[0]['source'],
-): GeneratedMaterial {
+): Material {
   if (material.type !== 'seed') return material;
   return createSpiritSeedMaterial({
     rank: material.rank,
