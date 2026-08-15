@@ -9,6 +9,7 @@ import type {
   PillSpec,
   RemoveStatusOperation,
   RestoreResourceOperation,
+  SpiritFruitSpec,
   TalismanSpec,
 } from '@shared/types/consumable';
 import type { Consumable } from '@shared/types/cultivator';
@@ -27,6 +28,12 @@ export function isTalismanSpec(
   spec: ConsumableSpec | null | undefined,
 ): spec is TalismanSpec {
   return !!spec && spec.kind === 'talisman';
+}
+
+export function isSpiritFruitSpec(
+  spec: ConsumableSpec | null | undefined,
+): spec is SpiritFruitSpec {
+  return !!spec && spec.kind === 'spirit_fruit';
 }
 
 export function isPillConsumable(
@@ -95,6 +102,10 @@ export function assertConsumableSpec(value: unknown): ConsumableSpec {
   }
 
   if (value.kind === 'talisman') {
+    return value as unknown as ConsumableSpec;
+  }
+
+  if (value.kind === 'spirit_fruit') {
     return value as unknown as ConsumableSpec;
   }
 

@@ -69,6 +69,7 @@ const HOTSPOT_SCENE_KEYS: Readonly<Record<string, SectSceneKey>> = {
   alchemy: 'alchemy',
   refinery: 'refinery',
   vein: 'spiritVein',
+  garden: 'herbGarden',
   gate: 'gate',
   cave: 'cave',
 };

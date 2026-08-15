@@ -99,6 +99,18 @@ export function mapMaterialRow(
   };
 }
 
+export function mapMaterialRowInternal(
+  m: typeof schema.materials.$inferSelect,
+): Cultivator['inventory']['materials'][number] {
+  return {
+    ...mapMaterialRow(m),
+    details:
+      m.details && typeof m.details === 'object'
+        ? { ...(m.details as Record<string, unknown>) }
+        : undefined,
+  };
+}
+
 export async function getCultivatorConsumableById(
   cultivatorId: string,
   consumableId: string,

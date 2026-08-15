@@ -200,6 +200,16 @@ export const TIANYAN_SECT_PRESENTATION: SectPresentationTheme = {
         'spirit_vein',
       ),
       hotspot(
+        'garden',
+        '长生圃',
+        '26%',
+        '15%',
+        '/game/sect/herb-garden',
+        'sect.herb_garden.view',
+        '草木长势 · 产出待开放',
+        'herb_garden',
+      ),
+      hotspot(
         'gate',
         '观象门',
         '50%',
@@ -243,6 +253,7 @@ export const TIANYAN_SECT_PRESENTATION: SectPresentationTheme = {
     cultivation_room: '太初静室',
     workshop: '太白铸府',
     spirit_vein: '坤元地脉',
+    herb_garden: '长生圃',
     formation: '五峰归流阵眼',
   },
   lockedFacilities: ['formation'],
@@ -297,6 +308,11 @@ export const TIANYAN_SECT_PRESENTATION: SectPresentationTheme = {
       title: '坤元地脉',
       description:
         '山腹地脉托住五峰阵基。厚土不显于天际，却决定廊桥、水渠与炉道能否在云雨之后仍守住原位。',
+    },
+    herbGarden: {
+      title: '长生圃',
+      description:
+        '灵草依水位与日照分层种植。圃中没有永远固定的田垄，每一季都会按照观象记录重新调整。',
     },
     gate: {
       title: '观象门',
@@ -437,6 +453,20 @@ export const TIANYAN_SECT_PRESENTATION: SectPresentationTheme = {
           id: 'tianyan-kunyuan-dimai',
           name: '坤元地脉',
           greeting: '厚土地脉沉在五峰之下，灵辉沿测线缓缓明灭。',
+        },
+      },
+    },
+    herbGarden: {
+      actors: {
+        keeper: {
+          id: 'tianyan-mushi',
+          name: '元吉',
+          greeting: '水位、日照与长势都已记下，今日值录可以查验。',
+        },
+        facility: {
+          id: 'tianyan-changsheng-pu',
+          name: '长生圃',
+          greeting: '田垄依照水位与日照铺开，新一季灵草正在生长。',
         },
       },
     },

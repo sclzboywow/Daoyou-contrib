@@ -196,6 +196,16 @@ export const YOUDU_SECT_PRESENTATION: SectPresentationTheme = {
         'spirit_vein',
       ),
       hotspot(
+        'garden',
+        '彼岸圃',
+        '70%',
+        '37%',
+        '/game/sect/herb-garden',
+        'sect.herb_garden.view',
+        '草木长势 · 产出待开放',
+        'herb_garden',
+      ),
+      hotspot(
         'gate',
         '无日关',
         '49%',
@@ -241,6 +251,7 @@ export const YOUDU_SECT_PRESENTATION: SectPresentationTheme = {
     alchemy: '还魂药庐',
     refinery: '镇铁炉',
     spirit_vein: '黑水阴脉',
+    herb_garden: '彼岸圃',
     formation: '万魂归窍阵',
   },
   lockedFacilities: ['formation'],
@@ -286,6 +297,10 @@ export const YOUDU_SECT_PRESENTATION: SectPresentationTheme = {
     spiritVein: {
       title: '黑水阴脉',
       description: '灵石沿湿冷岩层生长，表面映不出开采者的面孔。',
+    },
+    herbGarden: {
+      title: '彼岸圃',
+      description: '深色花叶沿黑水两岸生长；药田产出玩法后续开放。',
     },
     gate: {
       title: '无日关',
@@ -424,6 +439,20 @@ export const YOUDU_SECT_PRESENTATION: SectPresentationTheme = {
           id: 'youdu-heishui-yinmai',
           name: '黑水阴脉',
           greeting: '湿冷岩层间灵光幽微，黑水映不出矿壁的深处。',
+        },
+      },
+    },
+    herbGarden: {
+      actors: {
+        keeper: {
+          id: 'youdu-bianhua',
+          name: '柳十三',
+          greeting: '两岸花叶都安稳，今日长势已经记入值录。',
+        },
+        facility: {
+          id: 'youdu-bian-pu',
+          name: '彼岸圃',
+          greeting: '深色花叶沿黑水两岸舒展，水气停在叶尖未散。',
         },
       },
     },

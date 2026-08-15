@@ -15,6 +15,7 @@ import {
   sampleMaterialLibraryEntryByPreferences,
 } from './MaterialLibraryService';
 import { computeItemLibrarySampleKey } from './itemLibrarySampleKey';
+import { normalizeGeneratedSeed } from './SpiritSeedService';
 
 function createDeterministicRng(seed: string): () => number {
   let index = 0;
@@ -78,10 +79,10 @@ export async function generateYieldRewardAttachments(
     }
 
     selectedItemIds.add(entry.itemId);
-    const material = {
+    const material = normalizeGeneratedSeed({
       ...materialLibraryEntryToMaterial(entry),
       quantity: skeleton.quantity,
-    };
+    }, 'daily_yield');
     attachments.push({
       type: 'material',
       name: material.name,

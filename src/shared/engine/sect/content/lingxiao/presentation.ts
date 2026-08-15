@@ -72,7 +72,7 @@ export const LINGXIAO_SECT_PRESENTATION: SectPresentationTheme = {
   },
   map: {
     image: '/assets/sect/lingxiao-map.webp',
-    alt: '红尘剑宗殿阁、试剑台、工坊与矿场沿山路连接山下城郭的水墨鸟瞰图',
+    alt: '红尘剑宗殿阁、试剑台、工坊、矿场与药田沿山路连接山下城郭的水墨鸟瞰图',
     hotspots: [
       {
         id: 'hall',
@@ -179,6 +179,16 @@ export const LINGXIAO_SECT_PRESENTATION: SectPresentationTheme = {
         note: '矿场巡视 · 灵石收益 · 采矿',
       },
       {
+        id: 'garden',
+        label: '药田',
+        route: '/game/sect/herb-garden',
+        facility: 'herb_garden',
+        permission: 'sect.herb_garden.view',
+        left: '83%',
+        top: '75%',
+        note: '草木长势 · 产出待开放',
+      },
+      {
         id: 'gate',
         label: '山门',
         route: '/game/sect/gate',
@@ -220,6 +230,7 @@ export const LINGXIAO_SECT_PRESENTATION: SectPresentationTheme = {
     cultivation_room: '养剑室',
     workshop: '丹器坊',
     spirit_vein: '灵脉',
+    herb_garden: '药田',
     formation: '护山大阵',
   },
   lockedFacilities: ['formation'],
@@ -294,6 +305,12 @@ export const LINGXIAO_SECT_PRESENTATION: SectPresentationTheme = {
       description:
         '矿壁间青光沿岩隙缓缓游走，执事循脉定井；每周俸禄中的灵石加成皆从此处汇出。',
       loadingText: '矿道深处灵辉渐明……',
+    },
+    herbGarden: {
+      title: '宗门药田',
+      description:
+        '层层药畦顺山势铺开，灵泉沿石渠润过根须；药田产出玩法后续开放。',
+      loadingText: '药田晨雾正在散去……',
     },
     gate: {
       title: '山门',
@@ -437,6 +454,20 @@ export const LINGXIAO_SECT_PRESENTATION: SectPresentationTheme = {
           id: 'lingxiao-lingmai-kuangchang',
           name: '灵脉矿场',
           greeting: '矿壁间青光沿岩隙缓缓游走，脉息沉稳如常。',
+        },
+      },
+    },
+    herbGarden: {
+      actors: {
+        keeper: {
+          id: 'lingxiao-he-caowei',
+          name: '秦晚晴',
+          greeting: '晨露刚退，田里长势不错，草木值录已经写好了。',
+        },
+        facility: {
+          id: 'lingxiao-zongmen-yaotian',
+          name: '宗门药田',
+          greeting: '层层药畦顺山势铺开，灵泉正沿石渠润过根须。',
         },
       },
     },

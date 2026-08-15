@@ -14,6 +14,7 @@ export type SectSceneKey =
   | 'alchemy'
   | 'refinery'
   | 'spiritVein'
+  | 'herbGarden'
   | 'gate'
   | 'cave'
   | 'taskBattle';
@@ -247,6 +248,16 @@ const STANDARD_HOTSPOTS: readonly SectMapHotspot[] = [
     note: '矿场巡视 · 灵石收益 · 采矿',
   },
   {
+    id: 'garden',
+    label: '药田',
+    route: '/game/sect/herb-garden',
+    facility: 'herb_garden',
+    permission: 'sect.herb_garden.view',
+    left: '0',
+    top: '0',
+    note: '草木长势 · 产出待开放',
+  },
+  {
     id: 'gate',
     label: '山门',
     route: '/game/sect/gate',
@@ -318,6 +329,11 @@ const STANDARD_SCENES: Record<SectSceneKey, SectScenePresentation> = {
     '灵脉',
     '查看灵脉设施收益并办理矿场事务。',
     '灵脉记录正在读取……',
+  ),
+  herbGarden: scene(
+    '药田',
+    '查看药田设施提供的周期产出。',
+    '药田记录正在读取……',
   ),
   gate: scene('山门', '查看宗门近期动态与公共事务。', '山门记录正在读取……'),
   cave: scene(
@@ -634,6 +650,48 @@ const STANDARD_ROOMS: Readonly<Record<string, SectRoomDefinition>> =
         ),
       ],
     },
+    herbGarden: {
+      key: 'herbGarden',
+      description: '灵泉沿畦垄缓缓流过，药园执事正在田边查验草木长势。',
+      actors: [
+        roomActor(
+          'keeper',
+          '药',
+          '药园执事',
+          '药园执事',
+          '负责草木长势与周期产出。',
+          '今日草木长势平稳，田间近况都已记在值录中。',
+          'sect.herb-garden.caretaker',
+          {
+            facilityKey: 'herb_garden',
+            detail: '药田产出玩法后续开放。',
+            stages: [
+              '新畦初醒',
+              '灵苗成行',
+              '药香盈陌',
+              '四时不歇',
+              '百草丰登',
+            ],
+          },
+        ),
+        roomActor(
+          'facility',
+          '🌿',
+          '宗门药田',
+          '宗门设施',
+          '查看设施等级与药田近况。',
+          '灵泉润过畦垄，草木依照时序生长。',
+          'sect.herb-garden.status',
+          {
+            facilityKey: 'herb_garden',
+            effectKey: 'herb_garden',
+            detail: '药田产出玩法后续开放。',
+          },
+          'herb-garden-facility',
+          'facility',
+        ),
+      ],
+    },
     gate: {
       key: 'gate',
       description: '山门内外人声往来，守山执事在门侧整理当日来往记录。',
@@ -692,6 +750,7 @@ export const STANDARD_SECT_PRESENTATION: Omit<
     cultivation_room: '修炼室',
     workshop: '丹器坊',
     spirit_vein: '灵脉',
+    herb_garden: '药田',
     formation: '护宗大阵',
   }),
   lockedFacilities: Object.freeze(['formation']),

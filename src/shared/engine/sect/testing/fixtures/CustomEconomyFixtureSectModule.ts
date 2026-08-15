@@ -33,6 +33,7 @@ const fixtureOrganization: SectOrganizationModule = {
     'sect.facility.alchemy.use': 'inner',
     'sect.facility.refinery.use': 'inner',
     'sect.spirit_vein.view': 'registered',
+    'sect.herb_garden.view': 'registered',
     'sect.cave.view': 'inner',
     'sect.gate.view': 'registered',
     'sect.formation.view': 'true',
