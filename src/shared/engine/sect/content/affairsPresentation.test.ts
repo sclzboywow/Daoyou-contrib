@@ -58,8 +58,10 @@ const facilityActorKeys = [
   ['alchemy', 'keeper'],
   ['refinery', 'keeper'],
   ['spiritVein', 'keeper'],
+  ['herbGarden', 'keeper'],
   ['gate', 'keeper'],
   ['spiritVein', 'facility'],
+  ['herbGarden', 'facility'],
   ['gate', 'facility'],
 ] as const;
 
@@ -78,8 +80,10 @@ const expectedFacilityNames: Readonly<Record<string, readonly string[]>> = {
     '程晚照',
     '谭折柳',
     '邵沉川',
+    '秦晚晴',
     '骆长亭',
     '灵脉矿场',
+    '宗门药田',
     '山门',
   ],
   [TIANYAN_SECT_PRESENTATION.sectId]: [
@@ -96,8 +100,10 @@ const expectedFacilityNames: Readonly<Record<string, readonly string[]>> = {
     '允中道人',
     '松乔道人',
     '见素',
+    '元吉',
     '望舒',
     '坤元地脉',
+    '长生圃',
     '观象门',
   ],
   [WUXIANG_SECT_PRESENTATION.sectId]: [
@@ -114,8 +120,10 @@ const expectedFacilityNames: Readonly<Record<string, readonly string[]>> = {
     '明恕',
     '法圆',
     '慧海',
+    '行愿',
     '道安禅师',
     '骨玉窟',
+    '血莲池',
     '不二门',
   ],
   [YOUDU_SECT_PRESENTATION.sectId]: [
@@ -132,8 +140,10 @@ const expectedFacilityNames: Readonly<Record<string, readonly string[]>> = {
     '白蘅',
     '祝余',
     '贺寒川',
+    '柳十三',
     '顾长夜',
     '黑水阴脉',
+    '彼岸圃',
     '无日关',
   ],
 };
@@ -157,6 +167,7 @@ const canonicalMapNotes: Readonly<Record<string, string>> = {
   alchemy: '炼丹 · 设施灵效',
   refinery: '炼器 · 设施灵效',
   vein: '矿场巡视 · 灵石收益 · 采矿',
+  garden: '草木长势 · 产出待开放',
   gate: '山门动态 · 清扫差事',
   cave: '弟子居所',
   formation: '宗门战后续开放',
@@ -266,8 +277,8 @@ describe('production sect affairs presentations', () => {
         (actor) => actor.name,
       );
       const allNames = [...affairsNames, ...expectedNames];
-      expect(new Set(allNames).size).toBe(19);
-      expect(expectedNames.slice(0, 14).join('')).not.toMatch(
+      expect(new Set(allNames).size).toBe(21);
+      expect(expectedNames.slice(0, 15).join('')).not.toMatch(
         /[籍禄库仓材门脉药炉铸场魂鬼阴灯影]/u,
       );
     }
