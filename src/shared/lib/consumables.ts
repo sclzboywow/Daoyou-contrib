@@ -154,6 +154,12 @@ export function buildConsumableStackKey(
           operations: spec.operations,
           consumeRules: spec.consumeRules,
         }
+      : spec.kind === 'spirit_fruit'
+        ? {
+            family: spec.family,
+            operations: spec.operations,
+            consumeRules: spec.consumeRules,
+          }
       : {
           scenario: spec.scenario,
           sessionMode: spec.sessionMode,
