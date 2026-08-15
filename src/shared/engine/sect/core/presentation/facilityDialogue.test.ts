@@ -61,14 +61,14 @@ describe('sect facility dialogue projection', () => {
       .map((segment) => segment.text)
       .join('');
     const fallbackText = describeSectFacilityStatus({
-      facilityLabel: '药田',
-      facility: facility('herb_garden', 2),
+      facilityLabel: '旧设施',
+      facility: facility('legacy_facility', 2),
     })
       .map((segment) => segment.text)
       .join('');
 
     expect(zeroText).toContain('闭关修为加成0%');
-    expect(fallbackText).toBe('药田如今是2级。');
+    expect(fallbackText).toBe('旧设施如今是2级。');
   });
 
   it('drops internal identifiers and invalid metric values', () => {

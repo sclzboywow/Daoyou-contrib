@@ -612,20 +612,6 @@ export const router = createBrowserRouter(
               )}
             />
             <Route
-              path="sect/herb-garden"
-              lazy={lazyRoute(
-                () => import('@app/routes/game/sect/herb-garden/route'),
-              )}
-              handle={scene(
-                {
-                  id: 'sect-herb-garden',
-                  presentation: 'service',
-                  summary: '查看药田等级、每周灵草产出与灵植长势。',
-                },
-                '宗门药田',
-              )}
-            />
-            <Route
               path="sect/cave"
               lazy={lazyRoute(() => import('@app/routes/game/sect/cave/route'))}
               handle={scene(

@@ -128,7 +128,7 @@ describe('天衍圣地战斗投影', () => {
     }
   });
 
-  it('五幕入门、15个标准地图热点与组织展示主题完整', () => {
+  it('五幕入门、14个标准地图热点与组织展示主题完整', () => {
     expect(TIANYAN_SECT_PRESENTATION.sectId).toBe('tianyan');
     expect(TIANYAN_SECT_PRESENTATION.onboarding?.script?.acts).toHaveLength(5);
     expect(TIANYAN_SECT_PRESENTATION.onboarding?.script?.backdrop.src).toBe(
@@ -151,7 +151,6 @@ describe('天衍圣地战斗投影', () => {
       'alchemy',
       'refinery',
       'vein',
-      'garden',
       'gate',
       'cave',
       'formation',
