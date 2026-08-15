@@ -676,7 +676,7 @@ const STANDARD_ROOMS: Readonly<Record<string, SectRoomDefinition>> =
         ),
         roomActor(
           'facility',
-          '🌿',
+          '田',
           '宗门药田',
           '宗门设施',
           '查看设施等级与药田近况。',

@@ -102,7 +102,7 @@ const moodStyles: Record<SectSceneMood, { surface: string; emblem: string }> = {
   },
   garden: {
     surface:
-      'border-emerald-950/20 bg-[repeating-linear-gradient(165deg,rgba(53,111,70,0.08)_0_2px,transparent_2px_34px),linear-gradient(135deg,rgba(218,232,201,0.9),rgba(235,220,179,0.55))]',
+      'border-ink/20 bg-[repeating-linear-gradient(165deg,rgba(44,24,16,0.035)_0_1px,transparent_1px_34px),linear-gradient(135deg,rgba(248,243,230,0.92),rgba(241,234,216,0.62))]',
     emblem: '药',
   },
   cave: {
