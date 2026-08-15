@@ -56,7 +56,7 @@ describe('幽都战斗与展示投影', () => {
     expect(new Set(ids).size).toBe(36);
   });
 
-  it('入门状态、五幕演出、地图资源与15个热点完整', () => {
+  it('入门状态、五幕演出、地图资源与14个热点完整', () => {
     expect(YOUDU_MODULE.definition.onboarding).toEqual({
       initialContribution: 30,
       initialMethods: {
@@ -76,7 +76,7 @@ describe('幽都战斗与展示投影', () => {
     expect(YOUDU_SECT_PRESENTATION.map?.image).toBe(
       '/assets/sect/youdu-map.webp',
     );
-    expect(YOUDU_SECT_PRESENTATION.map?.hotspots).toHaveLength(15);
+    expect(YOUDU_SECT_PRESENTATION.map?.hotspots).toHaveLength(14);
     expect(
       YOUDU_SECT_PRESENTATION.map?.hotspots?.find(
         (spot) => spot.id === 'formation',
@@ -358,7 +358,6 @@ describe('幽都战斗与展示投影', () => {
       cultivation_room: '返照室',
       workshop: '镇铁炉',
       spirit_vein: '黑水阴脉',
-      herb_garden: '返照香圃',
     });
   });
 });

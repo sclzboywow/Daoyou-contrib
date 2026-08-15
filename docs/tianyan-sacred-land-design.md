@@ -1428,7 +1428,6 @@ Status.Sect.tianyan.ElementSeal.Water
 | `alchemy` | 青华丹院 | 30%, 29% | `/game/sect/alchemy` | 灵草炼丹 |
 | `refinery` | 太白铸府 | 35%, 75% | `/game/sect/refinery` | 五金炼器 |
 | `vein` | 坤元地脉 | 82%, 54% | `/game/sect/spirit-vein` | 灵石俸禄加成 |
-| `garden` | 长生圃 | 26%, 15% | `/game/sect/herb-garden` | 每周灵草产出 |
 | `gate` | 观象门 | 50%, 88% | `/game/sect/gate` | 宗门动态 |
 | `cave` | 云衡洞府 | 13%, 50% | `/game/sect/cave` | 内门弟子居所 |
 | `formation` | 五峰归流阵眼 | 50%, 53% | locked | 宗门战后续开放 |

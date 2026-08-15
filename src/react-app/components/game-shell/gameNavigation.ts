@@ -93,7 +93,7 @@ export const gameDockGroups: GameNavGroup[] = [
       {
         id: 'sect-abilities',
         sceneLabel: '宗门演武',
-        href: '/game/sect/arena',
+        href: '/game/sect/arena?workspace=loadout&npc=instructor',
         expandedDockLabel: '📜 宗门神通',
       },
       {
@@ -116,7 +116,6 @@ export const gameDockGroups: GameNavGroup[] = [
       { id: 'sect-alchemy', sceneLabel: '宗门丹房' },
       { id: 'sect-refinery', sceneLabel: '宗门器坊' },
       { id: 'sect-spirit-vein', sceneLabel: '宗门灵脉' },
-      { id: 'sect-herb-garden', sceneLabel: '宗门药田' },
       { id: 'sect-cave', sceneLabel: '弟子居所' },
       { id: 'sect-gate', sceneLabel: '宗门山门' },
       { id: 'sect-gate-sweep', sceneLabel: '清扫山门' },
@@ -222,6 +221,10 @@ export const gameDockGroups: GameNavGroup[] = [
         expandedDockLabel: '🛖 修仙坊市',
       },
       {
+        id: 'black-market',
+        sceneLabel: '暗巷黑市',
+      },
+      {
         id: 'market-recycle',
         sceneLabel: '鉴宝回收',
         href: '/game/market/recycle',
@@ -247,9 +250,9 @@ export const gameDockGroups: GameNavGroup[] = [
     scenes: [
       {
         id: 'mail',
-        sceneLabel: '传音玉简',
+        sceneLabel: '道友传音',
         href: '/game/mail',
-        coreDockLabel: '传音玉简',
+        coreDockLabel: '道友传音',
       },
       {
         id: 'world-chat',
@@ -276,8 +279,23 @@ export const gameDockGroups: GameNavGroup[] = [
         expandedDockLabel: '⚔️ 赌战台',
       },
       {
+        id: 'arena-sparring',
+        sceneLabel: '擂台切磋',
+        href: '/game/arena',
+        expandedDockLabel: '🥁 擂台切磋',
+      },
+      {
         id: 'battle-challenge',
         sceneLabel: '挑战天骄',
+      },
+      {
+        id: 'battle-live-lobby',
+        sceneLabel: '多人战斗邀请',
+        href: '/game/battle/live',
+      },
+      {
+        id: 'battle-live-match',
+        sceneLabel: '实时多人战局',
       },
       {
         id: 'battle-replay',

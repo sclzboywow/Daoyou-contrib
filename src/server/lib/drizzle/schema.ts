@@ -9,6 +9,7 @@ import type {
 } from '@shared/lib/itemLibrary';
 import type { TowerPreparedEnemy } from '@shared/lib/tower';
 import type { BattleRecordV3 } from '@shared/types/battle';
+import type { BattleReplayV1 } from '@shared/contracts/battleReplay';
 import type {
   AlchemyFormulaBlueprint,
   AlchemyFormulaMastery,
@@ -101,6 +102,7 @@ export const cultivators = pgTable(
       table.updatedAt,
     ),
     index('cultivators_status_created_idx').on(table.status, table.createdAt),
+    index('cultivators_name_idx').on(table.name),
     index('cultivators_status_spirit_stones_idx').on(
       table.status,
       table.spirit_stones,
@@ -615,6 +617,8 @@ export const consumables = pgTable(
     prompt: varchar('prompt', { length: 200 }).notNull().default(''), // 提示词
     quality: varchar('quality', { length: 20 }).notNull().default('凡品'), // 凡品 | 下品 | 中品 | 上品 | 极品 | 仙品 | 神品
     spec: jsonb('spec').notNull().default({}),
+    // 仅由新写入的消耗品填充；历史库存不回填，也不参与新堆叠合并。
+    stackKey: varchar('stack_key', { length: 128 }),
     quantity: integer('quantity').notNull().default(1),
     description: text('description'),
     score: integer('score').notNull().default(0), // 评分
@@ -627,6 +631,13 @@ export const consumables = pgTable(
       table.name,
       table.quality,
     ),
+    index('consumables_cultivator_stack_key_idx').on(
+      table.cultivatorId,
+      table.stackKey,
+    ),
+    uniqueIndex('consumables_cultivator_stack_unique')
+      .on(table.cultivatorId, table.name, table.quality, table.type, table.stackKey)
+      .where(sql`${table.stackKey} is not null`),
     index('consumables_score_idx').on(table.score),
   ],
 );
@@ -780,6 +791,32 @@ export const battleRecordsV3 = pgTable(
       table.createdAt,
     ),
     uniqueIndex('battle_records_v3_share_code_uidx').on(table.shareCode),
+  ],
+);
+
+// 在线对局结束后由 NATS 消费者异步写入；进行中状态只存在 Redis。
+export const battleReplayArchives = pgTable(
+  'wanjiedaoyou_battle_replay_archives',
+  {
+    matchId: varchar('match_id', { length: 120 }).primaryKey(),
+    replayVersion: varchar('replay_version', { length: 40 }).notNull(),
+    engineVersion: varchar('engine_version', { length: 40 }).notNull(),
+    rulesetVersion: varchar('ruleset_version', { length: 60 }).notNull(),
+    startedAt: timestamp('started_at').notNull(),
+    finishedAt: timestamp('finished_at').notNull(),
+    outcome: jsonb('outcome').$type<BattleReplayV1['outcome']>().notNull(),
+    participants: jsonb('participants')
+      .$type<BattleReplayV1['participants']>()
+      .notNull(),
+    replay: jsonb('replay').$type<BattleReplayV1>().notNull(),
+    archivedAt: timestamp('archived_at').defaultNow().notNull(),
+  },
+  (table) => [
+    index('battle_replay_archives_finished_idx').on(table.finishedAt),
+    index('battle_replay_archives_participants_gin_idx').using(
+      'gin',
+      table.participants,
+    ),
   ],
 );
 
@@ -1217,7 +1254,9 @@ export const auctionListings = pgTable(
     itemSnapshot: jsonb('item_snapshot').notNull(),
 
     // 价格与状态
-    price: integer('price').notNull(), // 一口价（灵石）
+    price: integer('price').notNull(), // 单件一口价（灵石）
+    initialQuantity: integer('initial_quantity').notNull().default(1),
+    remainingQuantity: integer('remaining_quantity').notNull().default(1),
     status: varchar('status', { length: 20 }).notNull().default('active'), // active | sold | expired | cancelled
     visibility: varchar('visibility', { length: 20 })
       .notNull()

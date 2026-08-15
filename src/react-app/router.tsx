@@ -295,15 +295,29 @@ export const router = createBrowserRouter(
               )}
             />
             <Route
+              path="black-market"
+              lazy={lazyRoute(
+                () => import('@app/routes/game/black-market/route'),
+              )}
+              handle={scene(
+                {
+                  id: 'black-market',
+                  presentation: 'workflow',
+                  summary: '辨货、问价，在有限线索里决定是否落子。',
+                },
+                '暗巷黑市',
+              )}
+            />
+            <Route
               path="mail"
               lazy={lazyRoute(() => import('@app/routes/game/mail/route'))}
               handle={scene(
                 {
                   id: 'mail',
                   presentation: 'service',
-                  summary: '宗门来函与诸界消息尽归玉简。',
+                  summary: '往来玉简与好友名录皆归于此。',
                 },
-                '传音玉简',
+                '道友传音',
               )}
             />
             <Route
@@ -598,20 +612,6 @@ export const router = createBrowserRouter(
               )}
             />
             <Route
-              path="sect/herb-garden"
-              lazy={lazyRoute(
-                () => import('@app/routes/game/sect/herb-garden/route'),
-              )}
-              handle={scene(
-                {
-                  id: 'sect-herb-garden',
-                  presentation: 'service',
-                  summary: '查看药田等级、每周灵草产出与灵植长势。',
-                },
-                '宗门药田',
-              )}
-            />
-            <Route
               path="sect/cave"
               lazy={lazyRoute(() => import('@app/routes/game/sect/cave/route'))}
               handle={scene(
@@ -832,6 +832,18 @@ export const router = createBrowserRouter(
               )}
             />
             <Route
+              path="arena"
+              lazy={lazyRoute(() => import('@app/routes/game/arena/route'))}
+              handle={scene(
+                {
+                  id: 'arena-sparring',
+                  presentation: 'workflow',
+                  summary: '创建房间或凭邀请码入场，自动分队后进行无消耗切磋。',
+                },
+                '擂台切磋',
+              )}
+            />
+            <Route
               path="dungeon/history"
               lazy={lazyRoute(
                 () => import('@app/routes/game/dungeon/history/route'),
@@ -955,6 +967,34 @@ export const router = createBrowserRouter(
                   dock: 'hidden',
                 },
                 '挑战天骄',
+              )}
+            />
+            <Route
+              path="battle/live"
+              lazy={lazyRoute(
+                () => import('@app/routes/game/battle/live/lobby'),
+              )}
+              handle={scene(
+                {
+                  id: 'battle-live-lobby',
+                  chrome: 'immersive',
+                  dock: 'hidden',
+                },
+                '多人战斗邀请',
+              )}
+            />
+            <Route
+              path="battle/live/:matchId"
+              lazy={lazyRoute(
+                () => import('@app/routes/game/battle/live/route'),
+              )}
+              handle={scene(
+                {
+                  id: 'battle-live-match',
+                  chrome: 'immersive',
+                  dock: 'hidden',
+                },
+                '实时多人战局',
               )}
             />
             <Route

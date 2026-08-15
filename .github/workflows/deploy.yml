@@ -2,10 +2,11 @@ name: Build and Deploy
 
 on:
   push:
-    branches: [ "master" ]   # 按需修改分支
+    tags:
+      - '*'
 
 env:
-  IMAGE_NAME: ${{ secrets.DOCKERHUB_USERNAME }}/daoyou-hono  # 改成你的镜像名
+  APP_IMAGE_NAME: ${{ secrets.DOCKERHUB_USERNAME }}/daoyou-app
   IMAGE_TAG: latest
 
 jobs:
@@ -26,10 +27,10 @@ jobs:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
 
-      # 构建并推送镜像
-      - name: Build and push Docker image
+      - name: Build and push app image
         uses: docker/build-push-action@v5
         with:
           context: .
+          file: docker/Dockerfile.app
           push: true
-          tags: ${{ env.IMAGE_NAME }}:${{ env.IMAGE_TAG }}
+          tags: ${{ env.APP_IMAGE_NAME }}:${{ env.IMAGE_TAG }}

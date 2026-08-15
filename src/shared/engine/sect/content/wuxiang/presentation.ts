@@ -195,16 +195,6 @@ export const WUXIANG_SECT_PRESENTATION: SectPresentationTheme = {
         'spirit_vein',
       ),
       hotspot(
-        'garden',
-        '血莲池',
-        '70%',
-        '39%',
-        '/game/sect/herb-garden',
-        'sect.herb_garden.view',
-        '草木长势 · 产出待开放',
-        'herb_garden',
-      ),
-      hotspot(
         'gate',
         '不二门',
         '49%',
@@ -247,7 +237,6 @@ export const WUXIANG_SECT_PRESENTATION: SectPresentationTheme = {
     cultivation_room: '止观室',
     workshop: '火供院',
     spirit_vein: '骨玉窟',
-    herb_garden: '血莲池',
     formation: '两界曼荼罗',
   },
   lockedFacilities: ['formation'],
@@ -300,10 +289,6 @@ export const WUXIANG_SECT_PRESENTATION: SectPresentationTheme = {
     spiritVein: {
       title: '骨玉窟',
       description: '白色矿髓沿黑岩生长，如同山腹中的巨大骨骼。',
-    },
-    herbGarden: {
-      title: '血莲池',
-      description: '暗红池水并无腥气，莲叶托着晨露；药田产出玩法后续开放。',
     },
     gate: {
       title: '不二门',
@@ -444,20 +429,6 @@ export const WUXIANG_SECT_PRESENTATION: SectPresentationTheme = {
           id: 'wuxiang-guyu-ku',
           name: '骨玉窟',
           greeting: '白色矿髓沿黑岩静静生长，窟中脉息未见异动。',
-        },
-      },
-    },
-    herbGarden: {
-      actors: {
-        keeper: {
-          id: 'wuxiang-huilian',
-          name: '行愿',
-          greeting: '池水无波，草木各循时生长，今日长势已经记下。',
-        },
-        facility: {
-          id: 'wuxiang-xuelian-chi',
-          name: '血莲池',
-          greeting: '暗红池水静映晨光，莲叶托着露珠缓缓舒展。',
         },
       },
     },

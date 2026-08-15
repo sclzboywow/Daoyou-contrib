@@ -44,7 +44,6 @@ const capabilities = new StandardSectCapabilityPolicy(
     'sect.facility.alchemy.use': 'inner',
     'sect.facility.refinery.use': 'inner',
     'sect.spirit_vein.view': 'registered',
-    'sect.herb_garden.view': 'registered',
     'sect.cave.view': 'inner',
     'sect.gate.view': 'registered',
     'sect.formation.view': 'true',
@@ -482,7 +481,6 @@ class StandardSectConstructionPolicy implements SectConstructionPolicy {
     },
     { key: 'workshop', initialLevel: 1, maxLevel: 5, upgradeable: true },
     { key: 'spirit_vein', initialLevel: 1, maxLevel: 5, upgradeable: true },
-    { key: 'herb_garden', initialLevel: 1, maxLevel: 5, upgradeable: true },
     { key: 'formation', initialLevel: 0, maxLevel: 0, upgradeable: false },
   ] as const;
 
@@ -831,7 +829,6 @@ class StandardSectBenefitPolicy implements SectBenefitPolicy {
     const cultivationLevel = this.level(levels, 'cultivation_room');
     const workshopLevel = this.level(levels, 'workshop');
     const spiritVeinLevel = this.level(levels, 'spirit_vein');
-    const herbGardenLevel = this.level(levels, 'herb_garden');
     const alchemy = this.craftDiscount(
       SECT_CRAFT_CONTEXTS.alchemy,
       levels,
@@ -900,24 +897,6 @@ class StandardSectBenefitPolicy implements SectBenefitPolicy {
               key: 'level',
               label: `${this.facilityName('spirit_vein', '灵脉')}等级`,
               value: spiritVeinLevel,
-              format: 'number' as const,
-            },
-          ],
-        },
-        herb_garden: {
-          renderer: 'sect.benefit.herbs',
-          summary: `每周产出 ${herbGardenLevel} 份基础灵草`,
-          metrics: [
-            {
-              key: 'level',
-              label: `${this.facilityName('herb_garden', '药田')}等级`,
-              value: herbGardenLevel,
-              format: 'number' as const,
-            },
-            {
-              key: 'weekly_herbs',
-              label: '每周基础灵草',
-              value: herbGardenLevel,
               format: 'number' as const,
             },
           ],
