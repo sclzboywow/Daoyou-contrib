@@ -32,6 +32,21 @@ import {
   startTransactionalMessageRelay,
   stopTransactionalMessageRelay,
 } from './transactionalMessageRelay';
+import {
+  isBattleReplayArchiveConsumerHealthy,
+  startBattleReplayArchiveConsumer,
+  stopBattleReplayArchiveConsumer,
+} from './battleReplayArchiveConsumer';
+import {
+  isBattleTerminalFinalizerConsumerHealthy,
+  startBattleTerminalFinalizerConsumer,
+  stopBattleTerminalFinalizerConsumer,
+} from './battleTerminalFinalizerConsumer';
+import {
+  isBattleResolutionConsumerHealthy,
+  startBattleResolutionConsumer,
+  stopBattleResolutionConsumer,
+} from './battleResolutionConsumer';
 
 let registered = false;
 
@@ -42,6 +57,9 @@ export async function registerMessageInfrastructure(): Promise<void> {
   await ensureMessageTopology();
   await Promise.all([
     startBackgroundCommandConsumer(),
+    startBattleReplayArchiveConsumer(),
+    startBattleTerminalFinalizerConsumer(),
+    startBattleResolutionConsumer(),
     startDomainEventConsumer({
       consumerName: DOMAIN_EVENT_CONSUMERS.sectFacilityProjector.name,
       concurrency: DOMAIN_EVENT_CONSUMERS.sectFacilityProjector.concurrency,
@@ -167,6 +185,9 @@ export async function shutdownMessageInfrastructure(): Promise<void> {
   registered = false;
   stopTransactionalMessageRelay();
   await stopBackgroundCommandConsumer();
+  await stopBattleReplayArchiveConsumer();
+  await stopBattleTerminalFinalizerConsumer();
+  await stopBattleResolutionConsumer();
   await stopDomainEventConsumers();
   await stopNatsCoreSubscriptions();
   await closeNatsConnection();
@@ -176,6 +197,9 @@ export function getMessageInfrastructureHealthStatus(): 'up' | 'down' {
   return registered &&
     areDomainEventConsumersHealthy() &&
     isBackgroundCommandConsumerHealthy() &&
+    isBattleReplayArchiveConsumerHealthy() &&
+    isBattleTerminalFinalizerConsumerHealthy() &&
+    isBattleResolutionConsumerHealthy() &&
     areNatsCoreSubscriptionsHealthy()
     ? 'up'
     : 'down';
