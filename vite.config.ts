@@ -58,7 +58,10 @@ export default defineConfig(({ command, mode }) => {
       plugins: [
         build({
           entry: './src/index.ts',
-          emptyOutDir: true,
+          // The client build writes index.html and its assets to the same dist
+          // directory before the server bundle is produced. Keep those files so
+          // history routes such as /game can fall back to the SPA entry point.
+          emptyOutDir: false,
         }),
       ],
     };
