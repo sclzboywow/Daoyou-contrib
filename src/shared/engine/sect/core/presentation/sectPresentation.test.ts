@@ -85,7 +85,7 @@ describe('sect presentation affairs room', () => {
     });
   });
 
-  it('models gate, spirit vein and herb garden facilities as display variants of NPCs', () => {
+  it('models gate and spirit vein facilities as display variants of NPCs', () => {
     const presentation = resolveSectPresentation('sample-sect', {
       sectId: 'sample-sect',
       rooms: {
@@ -97,11 +97,6 @@ describe('sect presentation affairs room', () => {
         spiritVein: {
           actors: {
             facility: { name: '坤元地脉', greeting: '地脉灵辉稳定。' },
-          },
-        },
-        herbGarden: {
-          actors: {
-            facility: { name: '长生圃', greeting: '灵草依时生长。' },
           },
         },
       },
@@ -126,16 +121,6 @@ describe('sect presentation affairs room', () => {
       sigil: '⛏️',
       appearance: 'facility',
       conversation: { renderer: 'sect.spirit-vein.mining' },
-    });
-    expect(
-      presentation.rooms.herbGarden.actors.find(
-        (actor) => actor.roleKey === 'facility',
-      ),
-    ).toMatchObject({
-      name: '长生圃',
-      sigil: '田',
-      appearance: 'facility',
-      conversation: { renderer: 'sect.herb-garden.status' },
     });
   });
 

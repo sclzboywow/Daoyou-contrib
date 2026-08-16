@@ -7,6 +7,7 @@ import {
   rehydrateStoredProductModel,
   serializeProductModel,
 } from '@shared/engine/creation-v2/persistence/ProductPersistenceMapper';
+import { buildConsumableStackKey } from '@shared/lib/consumables';
 import {
   ELEMENT_VALUES,
   ElementType,
@@ -32,6 +33,7 @@ import {
   sql,
   type SQL,
 } from 'drizzle-orm';
+import { createHash } from 'node:crypto';
 import {
   getExecutor,
   type DbExecutor,
@@ -44,6 +46,10 @@ import { sanitizeMaterialDetails } from '../materialDetailsPrivacy';
 import { addMaterialStackToInventory } from '../materialInventory';
 
 import { assertCultivatorOwnership } from './CultivatorStateRepository';
+
+function hashConsumableStackSignature(signature: string): string {
+  return createHash('sha256').update(signature).digest('hex');
+}
 type InventoryType = 'artifacts' | 'consumables' | 'materials';
 
 type InventoryItemByType = {
@@ -655,52 +661,47 @@ export async function addConsumableToInventoryInTransaction(
   const dbInstance = getExecutor(tx);
   const score = calculateSingleElixirScore(consumable);
   const quality = consumable.quality || '凡品';
-  const [existing] = await dbInstance
-    .select()
-    .from(schema.consumables)
-    .where(
-      and(
-        eq(schema.consumables.cultivatorId, cultivatorId),
-        eq(schema.consumables.name, consumable.name),
-        eq(schema.consumables.quality, quality),
-        eq(schema.consumables.type, consumable.type),
-        eq(schema.consumables.spec, consumable.spec),
-      ),
-    )
-    .limit(1);
-
-  if (existing?.id) {
-    const [updated] = await dbInstance
-      .update(schema.consumables)
-      .set({
-        quantity: existing.quantity + consumable.quantity,
-        score: Math.max(existing.score || 0, score),
-        prompt: consumable.prompt || existing.prompt || '',
-        spec: consumable.spec,
-        description: consumable.description || existing.description || null,
-      })
-      .where(eq(schema.consumables.id, existing.id))
-      .returning();
-    if (!updated) throw new Error('消耗品入库失败');
-    return mapConsumableRow(updated);
-  } else {
-    const [inserted] = await dbInstance
-      .insert(schema.consumables)
-      .values({
-        cultivatorId,
-        name: consumable.name,
-        type: consumable.type,
+  const stackKey = hashConsumableStackSignature(
+    buildConsumableStackKey({
+      ...consumable,
+      quality,
+    }),
+  );
+  const [saved] = await dbInstance
+    .insert(schema.consumables)
+    .values({
+      cultivatorId,
+      name: consumable.name,
+      type: consumable.type,
+      prompt: consumable.prompt || '',
+      quality,
+      stackKey,
+      spec: consumable.spec,
+      quantity: consumable.quantity,
+      description: consumable.description || null,
+      score,
+    })
+    .onConflictDoUpdate({
+      target: [
+        schema.consumables.cultivatorId,
+        schema.consumables.name,
+        schema.consumables.quality,
+        schema.consumables.type,
+        schema.consumables.stackKey,
+      ],
+      targetWhere: sql`${schema.consumables.stackKey} is not null`,
+      set: {
+        quantity: sql`${schema.consumables.quantity} + ${consumable.quantity}`,
+        score: sql`GREATEST(${schema.consumables.score}, ${score})`,
         prompt: consumable.prompt || '',
-        quality: quality,
         spec: consumable.spec,
-        quantity: consumable.quantity,
         description: consumable.description || null,
-        score,
-      })
-      .returning();
-    if (!inserted) throw new Error('消耗品入库失败');
-    return mapConsumableRow(inserted);
-  }
+        stackKey,
+      },
+    })
+    .returning();
+  if (!saved) throw new Error('消耗品入库失败');
+  return mapConsumableRow(saved);
 }
 
 export async function consumeConsumableById(

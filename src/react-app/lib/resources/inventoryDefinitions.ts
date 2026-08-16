@@ -80,8 +80,7 @@ function inventoryPageResource<TTopic extends InventoryTopic>(
         if (params.materialSortOrder) {
           query.set('materialSortOrder', params.materialSortOrder);
         }
-      }
-      if (tab === 'consumables' && params.consumableKind) {
+      } else if (tab === 'consumables' && params.consumableKind) {
         query.set('consumableKind', params.consumableKind);
       }
       return loadResourceEndpoint(
