@@ -2,7 +2,7 @@ export type LlmSceneId =
   | 'alchemy-formula-analysis'
   | 'alchemy-improvised-copy'
   | 'alchemy-recipe-plan'
-  | 'black-market-conversation'
+  | 'battle-report'
   | 'breakthrough-story'
   | 'character-generation'
   | 'divine-fortune'
@@ -18,6 +18,8 @@ export type LlmSceneId =
   | 'spirit-seed-generation'
   | 'spirit-seed-stage-assessment'
   | 'spirit-plant-outcome-naming'
+  | 'spirit-plant-observation'
+  | 'spirit-plant-consultation'
   | 'yield-story';
 
 export type LlmStructuredFailureKind =

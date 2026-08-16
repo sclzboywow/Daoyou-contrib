@@ -1,7 +1,7 @@
 import alchemyFormulaAnalysisPrompt from '@server/prompts/alchemy-formula-analysis.md?raw';
 import alchemyImprovisedCopyPrompt from '@server/prompts/alchemy-improvised-copy.md?raw';
 import alchemyRecipePlanPrompt from '@server/prompts/alchemy-recipe-plan.md?raw';
-import blackMarketConversationPrompt from '@server/prompts/black-market-conversation.md?raw';
+import battleReportPrompt from '@server/prompts/battle-report.md?raw';
 import breakthroughStoryPrompt from '@server/prompts/breakthrough-story.md?raw';
 import characterGenerationPrompt from '@server/prompts/character-generation.md?raw';
 import divineFortunePrompt from '@server/prompts/divine-fortune.md?raw';
@@ -14,6 +14,8 @@ import lifespanExhaustedPrompt from '@server/prompts/lifespan-exhausted.md?raw';
 import materialGenerationPrompt from '@server/prompts/material-generation.md?raw';
 import materialSemanticEnrichmentPrompt from '@server/prompts/material-semantic-enrichment.md?raw';
 import productNamingPrompt from '@server/prompts/product-naming.md?raw';
+import spiritPlantConsultationPrompt from '@server/prompts/spirit-plant-consultation.md?raw';
+import spiritPlantObservationPrompt from '@server/prompts/spirit-plant-observation.md?raw';
 import spiritPlantOutcomeNamingPrompt from '@server/prompts/spirit-plant-outcome-naming.md?raw';
 import spiritSeedGenerationPrompt from '@server/prompts/spirit-seed-generation.md?raw';
 import spiritSeedStageAssessmentPrompt from '@server/prompts/spirit-seed-stage-assessment.md?raw';
@@ -37,7 +39,7 @@ const bundledPromptSources: Record<string, string> = {
   'alchemy-formula-analysis.md': alchemyFormulaAnalysisPrompt,
   'alchemy-improvised-copy.md': alchemyImprovisedCopyPrompt,
   'alchemy-recipe-plan.md': alchemyRecipePlanPrompt,
-  'black-market-conversation.md': blackMarketConversationPrompt,
+  'battle-report.md': battleReportPrompt,
   'breakthrough-story.md': breakthroughStoryPrompt,
   'character-generation.md': characterGenerationPrompt,
   'divine-fortune.md': divineFortunePrompt,
@@ -51,6 +53,8 @@ const bundledPromptSources: Record<string, string> = {
   'material-semantic-enrichment.md': materialSemanticEnrichmentPrompt,
   'product-naming.md': productNamingPrompt,
   'spirit-plant-outcome-naming.md': spiritPlantOutcomeNamingPrompt,
+  'spirit-plant-observation.md': spiritPlantObservationPrompt,
+  'spirit-plant-consultation.md': spiritPlantConsultationPrompt,
   'spirit-seed-generation.md': spiritSeedGenerationPrompt,
   'spirit-seed-stage-assessment.md': spiritSeedStageAssessmentPrompt,
   'yield-story.md': yieldStoryPrompt,

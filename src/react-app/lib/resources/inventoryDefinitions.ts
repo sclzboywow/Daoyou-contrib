@@ -20,7 +20,7 @@ export interface InventoryPageParams {
   materialSortBy?:
     'createdAt' | 'rank' | 'type' | 'element' | 'quantity' | 'name';
   materialSortOrder?: 'asc' | 'desc';
-  consumableKind?: 'pill';
+  consumableKind?: 'pill' | 'spirit_fruit' | 'talisman';
 }
 
 const normalizedStrings = <T extends string>(
@@ -80,7 +80,8 @@ function inventoryPageResource<TTopic extends InventoryTopic>(
         if (params.materialSortOrder) {
           query.set('materialSortOrder', params.materialSortOrder);
         }
-      } else if (tab === 'consumables' && params.consumableKind) {
+      }
+      if (tab === 'consumables' && params.consumableKind) {
         query.set('consumableKind', params.consumableKind);
       }
       return loadResourceEndpoint(

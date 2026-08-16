@@ -40,6 +40,7 @@ import type {
 import { useCallback, useMemo, useState } from 'react';
 
 export type InventoryTab = 'artifacts' | 'materials' | 'consumables';
+export type ConsumableKindFilter = 'all' | 'pill' | 'spirit_fruit' | 'talisman';
 export type InventoryItem = Artifact | Consumable | Material;
 type ConsumableWithId = Consumable & { id: string };
 
@@ -129,6 +130,8 @@ export interface UseInventoryViewModelReturn {
     sortOrder: MaterialFilters['sortOrder'],
   ) => void;
   resetMaterialFilters: () => void;
+  consumableKind: ConsumableKindFilter;
+  setConsumableKind: (kind: ConsumableKindFilter) => void;
 
   // Modal 状态
   selectedItem: ItemDetailPayload | null;
@@ -174,6 +177,8 @@ export function useInventoryViewModel(): UseInventoryViewModelReturn {
     sortBy: 'createdAt',
     sortOrder: 'desc',
   });
+  const [consumableKind, setConsumableKindState] =
+    useState<ConsumableKindFilter>('all');
 
   // Modal 状态
   const [selectedItem, setSelectedItem] = useState<ItemDetailPayload | null>(
@@ -235,8 +240,12 @@ export function useInventoryViewModel(): UseInventoryViewModelReturn {
     [materialFilters, pageByTab.materials],
   );
   const consumableParams = useMemo(
-    () => ({ page: pageByTab.consumables, pageSize: DEFAULT_PAGE_SIZE }),
-    [pageByTab.consumables],
+    () => ({
+      page: pageByTab.consumables,
+      pageSize: DEFAULT_PAGE_SIZE,
+      consumableKind: consumableKind === 'all' ? undefined : consumableKind,
+    }),
+    [consumableKind, pageByTab.consumables],
   );
   const artifactsQuery = useResource(
     inventoryArtifactsResource,
@@ -637,6 +646,11 @@ export function useInventoryViewModel(): UseInventoryViewModelReturn {
         sortBy: 'createdAt',
         sortOrder: 'desc',
       });
+    },
+    consumableKind,
+    setConsumableKind: (kind) => {
+      setPageByTab((current) => ({ ...current, consumables: 1 }));
+      setConsumableKindState(kind);
     },
 
     // Modal 状态

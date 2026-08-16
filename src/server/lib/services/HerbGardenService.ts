@@ -15,24 +15,33 @@ import {
   CULTIVATION_METHODS,
   FORMATION_METHODS,
   HERB_GARDEN_MAX_HELPERS,
+  HERB_GARDEN_MAX_OBSERVATIONS_PER_STAGE,
+  HERB_GARDEN_MAX_QUESTIONS_PER_STAGE,
   HERB_GARDEN_MAX_STEAL_RATIO,
   HERB_GARDEN_PLOT_COUNT,
+  canCultivateSeedQuality,
   createSpiritSeedDetails,
   findCultivationMethod,
   findFormationMethod,
+  getHerbGardenMaxSeedQuality,
   nextHerbGardenStage,
   readSpiritSeedDetails,
   readSpiritSeedSpec,
   resolveCultivationMethod,
   resolveOutcomeKind,
   resolveOutcomeQuality,
+  resolveOutcomeQuantity,
+  resolveSpiritFruitEffects,
   type ActiveHerbGardenStage,
   type CultivationMethodId,
   type FormationMethodId,
   type HerbGardenActionId,
+  type HerbGardenConsultationRecord,
   type HerbGardenFriendView,
   type HerbGardenHarvestResult,
   type HerbGardenLogView,
+  type HerbGardenObservationKind,
+  type HerbGardenObservationRecord,
   type HerbGardenStage,
   type HerbGardenStageRecord,
   type HerbGardenState,
@@ -40,14 +49,15 @@ import {
   type SpiritSeedSpec,
   type StageRuleResolution,
 } from '@shared/contracts/herbGarden';
-import { ConditionService } from './ConditionService';
 import type {
   ElementType,
   MaterialType,
   Quality,
+  RealmType,
 } from '@shared/types/constants';
 import type { SpiritFruitSpec } from '@shared/types/consumable';
 import { and, desc, eq, gt, inArray, lte, sql } from 'drizzle-orm';
+import { ConditionService } from './ConditionService';
 import { HerbGardenNarrativeService } from './HerbGardenNarrativeService';
 import { loadCultivatorCombatInput } from './cultivator/CultivatorCombatProjectionReader';
 import { addMaterialStackToInventory } from './materialInventory';
@@ -102,12 +112,17 @@ type OutcomeSnapshot = {
     sourceSeedName: string;
     manifestationTags: string[];
   };
+  spiritFruitSpec?: SpiritFruitSpec;
 };
 
 type StoredStageRecord = HerbGardenStageRecord & {
   ruleScore: number;
   scoreDelta: number;
 };
+type StoredJournalEntry =
+  | StoredStageRecord
+  | HerbGardenObservationRecord
+  | HerbGardenConsultationRecord;
 
 type CostContext = {
   material?: {
@@ -136,6 +151,65 @@ function seedSpec(snapshot: SeedSnapshot): SpiritSeedSpec {
   return spec;
 }
 
+function isObservationRecord(
+  entry: StoredJournalEntry,
+): entry is HerbGardenObservationRecord {
+  return entry.kind === 'observation';
+}
+
+function isConsultationRecord(
+  entry: StoredJournalEntry,
+): entry is HerbGardenConsultationRecord {
+  return entry.kind === 'consultation';
+}
+
+function isCultivationRecord(
+  entry: StoredJournalEntry,
+): entry is StoredStageRecord {
+  return !isObservationRecord(entry) && !isConsultationRecord(entry);
+}
+
+const OBSERVATION_NAMES: Record<HerbGardenObservationKind, string> = {
+  appearance: '察叶色',
+  aura: '辨灵气',
+  soil: '验土性',
+  root: '探根须',
+};
+
+function observationSafeFact(
+  spec: SpiritSeedSpec,
+  observation: HerbGardenObservationKind,
+): string {
+  if (observation === 'appearance') {
+    if (spec.growthTraitTags.includes('fruiting'))
+      return '枝叶间已有细小花苞般的灵机聚点，这株灵植有结果倾向。';
+    if (spec.growthTraitTags.includes('medicinal_condensing'))
+      return '新叶的汁脉比茎干更浓，药性正向枝叶收拢。';
+    return '叶色与叶缘只显出温和生机，暂无明显的成型征兆。';
+  }
+  if (observation === 'aura') {
+    if (spec.preferredEnvironmentTags.includes('qi_dense'))
+      return '它会主动牵引近旁游离灵气，对灵气充沛的环境反应更好。';
+    if (spec.avoidedEnvironmentTags.includes('qi_dense'))
+      return '灵气稍一浓聚，叶面气息便有凝滞，它未必耐受过盛灵气。';
+    return '植株吐纳灵气的节律平稳，对当前灵机浓淡没有明显偏转。';
+  }
+  if (observation === 'soil') {
+    if (spec.preferredEnvironmentTags.includes('moist_watered'))
+      return '根际水气散得很慢，土壤湿润时叶面更舒展。';
+    if (spec.preferredEnvironmentTags.includes('mineral_rich'))
+      return '细根会向土中矿粒密集处伸展，显然会借矿性固根。';
+    if (spec.preferredEnvironmentTags.includes('sunlit_dry'))
+      return '表土稍干时茎叶反而更挺拔，它似乎喜偏干暖的土性。';
+    return '根际土性平和，暂时看不出它对湿度或矿性的明显喜恶。';
+  }
+  if (spec.growthTraitTags.includes('deep_rooted'))
+    return '主根向下扎得很深，适合稳住土壤与根系后再行养护。';
+  if (spec.growthTraitTags.includes('delicate_root'))
+    return '细根薄而易卷，剧烈改变土性可能会使它受扰。';
+  return '根须分布均匀，未见明显的深根或娇嫩征象。';
+}
+
 function stageDurationMs(
   stage: ActiveHerbGardenStage,
   rank: Quality,
@@ -152,19 +226,25 @@ function stageDurationMs(
   return (
     Math.max(
       5,
-      Math.round(STAGE_BASE_MINUTES[stage] * rankScale * multiplier * traitScale),
+      Math.round(
+        STAGE_BASE_MINUTES[stage] * rankScale * multiplier * traitScale,
+      ),
     ) * 60_000
   );
 }
 
-async function assertActiveCultivator(cultivatorId: string): Promise<string> {
+async function assertActiveCultivator(
+  cultivatorId: string,
+): Promise<{ name: string; realm: RealmType }> {
   const [row] = await db
-    .select({ name: cultivators.name })
+    .select({ name: cultivators.name, realm: cultivators.realm })
     .from(cultivators)
-    .where(and(eq(cultivators.id, cultivatorId), eq(cultivators.status, 'active')))
+    .where(
+      and(eq(cultivators.id, cultivatorId), eq(cultivators.status, 'active')),
+    )
     .limit(1);
   if (!row) throw new HerbGardenError('道友不存在或已无法访问', 404);
-  return row.name;
+  return { name: row.name, realm: row.realm as RealmType };
 }
 
 async function assertFriend(viewerId: string, ownerId: string): Promise<void> {
@@ -214,7 +294,10 @@ async function ensureGardenInitialized(cultivatorId: string): Promise<void> {
       .onConflictDoNothing()
       .returning({ id: herbGardenProfiles.cultivatorId });
     if (!created) return;
-    const details = createSpiritSeedDetails(`starter:${cultivatorId}`, 'starter');
+    const details = createSpiritSeedDetails(
+      `starter:${cultivatorId}`,
+      'starter',
+    );
     await addMaterialStackToInventory(
       cultivatorId,
       {
@@ -270,7 +353,8 @@ async function consumeMaterialById(
     .where(and(eq(materials.id, row.id), gt(materials.quantity, 0)))
     .returning({ quantity: materials.quantity });
   if (!updated) throw new HerbGardenError('材料数量已经变化，请重试', 409);
-  if (updated.quantity <= 0) await tx.delete(materials).where(eq(materials.id, row.id));
+  if (updated.quantity <= 0)
+    await tx.delete(materials).where(eq(materials.id, row.id));
   return row;
 }
 
@@ -313,12 +397,13 @@ async function deductMp(
   );
   if (normalized.resources.mp.current < amount)
     throw new HerbGardenError(`当前法力不足 ${amount} 点`, 409);
-  const next = ConditionService.applyExternalResourceLoss(
-    facts,
-    normalized,
-    { mpFlat: amount },
-  );
-  await tx.update(cultivators).set({ condition: next }).where(eq(cultivators.id, cultivatorId));
+  const next = ConditionService.applyExternalResourceLoss(facts, normalized, {
+    mpFlat: amount,
+  });
+  await tx
+    .update(cultivators)
+    .set({ condition: next })
+    .where(eq(cultivators.id, cultivatorId));
 }
 
 async function payMethodCost(
@@ -353,7 +438,10 @@ async function payMethodCost(
     if (!input.rootElement)
       throw new HerbGardenError('本命灵力灌注需要选择一条灵根', 400);
     const [root] = await tx
-      .select({ element: spiritualRoots.element, strength: spiritualRoots.strength })
+      .select({
+        element: spiritualRoots.element,
+        strength: spiritualRoots.strength,
+      })
       .from(spiritualRoots)
       .where(
         and(
@@ -377,7 +465,8 @@ async function payMethodCost(
     input.materialId,
     cost.materialType,
   );
-  if (cost.spiritStones) await deductSpiritStones(tx, cultivatorId, cost.spiritStones);
+  if (cost.spiritStones)
+    await deductSpiritStones(tx, cultivatorId, cost.spiritStones);
   return {
     material: {
       name: material.name,
@@ -394,6 +483,7 @@ function buildStageRecord(input: {
   rule: StageRuleResolution;
 }): StoredStageRecord {
   return {
+    kind: 'cultivation',
     recordId: crypto.randomUUID(),
     stage: input.stage,
     actionId: input.actionId,
@@ -415,7 +505,10 @@ function resolveFormationRule(
 ): StageRuleResolution {
   const formation = findFormationMethod(formationMethodId);
   if (!formation) throw new HerbGardenError('未知凝华方式', 400);
-  let ruleScore = formation.outcomeBias && spec.outcomeBiases.includes(formation.outcomeBias) ? 3 : 0;
+  let ruleScore =
+    formation.outcomeBias && spec.outcomeBiases.includes(formation.outcomeBias)
+      ? 3
+      : 0;
   if (formationMethodId === 'natural_form') ruleScore = 3;
   if (
     formationMethodId === 'fruit_bloom' &&
@@ -451,7 +544,9 @@ function resolveFormationRule(
   };
 }
 
-async function enrichStageNarrative(context: NarrativeContext): Promise<StoredStageRecord> {
+async function enrichStageNarrative(
+  context: NarrativeContext,
+): Promise<StoredStageRecord> {
   const generated = await HerbGardenNarrativeService.assessStage({
     seed: {
       name: context.seed.name,
@@ -483,7 +578,7 @@ async function enrichStageNarrative(context: NarrativeContext): Promise<StoredSt
     .where(eq(herbGardenPlots.id, context.plotId))
     .limit(1);
   if (!plot) return enriched;
-  const history = (plot.history as StoredStageRecord[]).map((record) =>
+  const history = (plot.history as StoredJournalEntry[]).map((record) =>
     record.recordId === enriched.recordId ? enriched : record,
   );
   await db
@@ -501,7 +596,8 @@ function fallbackOutcome(
   formationMethodId: FormationMethodId,
   history: StoredStageRecord[],
 ): OutcomeSnapshot {
-  const base = seed.name.replace(/[灵道玄异]?种$|灵籽$|玄籽$|灵核$|籽$/, '') || '无名';
+  const base =
+    seed.name.replace(/[灵道玄异]?种$|灵籽$|玄籽$|灵核$|籽$/, '') || '无名';
   const name =
     kind === 'spirit_fruit'
       ? `${base}凝露果`
@@ -538,7 +634,9 @@ async function enrichOutcomeName(
     .where(eq(herbGardenPlots.id, plotId))
     .limit(1);
   if (!plot) return;
-  const history = plot.history as StoredStageRecord[];
+  const history = (plot.history as StoredJournalEntry[]).filter(
+    isCultivationRecord,
+  );
   const copy = await HerbGardenNarrativeService.nameOutcome({
     seed: {
       name: seed.name,
@@ -550,6 +648,7 @@ async function enrichOutcomeName(
     quality: outcome.rank,
     quantity: outcome.quantity,
     history,
+    operations: outcome.spiritFruitSpec?.operations,
   });
   if (!copy) return;
   await db
@@ -578,8 +677,13 @@ export async function plantHerb(
     rootElement?: ElementType;
   },
 ): Promise<void> {
-  if (!Number.isInteger(input.slot) || input.slot < 1 || input.slot > HERB_GARDEN_PLOT_COUNT)
+  if (
+    !Number.isInteger(input.slot) ||
+    input.slot < 1 ||
+    input.slot > HERB_GARDEN_PLOT_COUNT
+  )
     throw new HerbGardenError('灵畦编号无效', 400);
+  const actor = await assertActiveCultivator(cultivatorId);
   await ensureGardenInitialized(cultivatorId);
   const gardenLevel = await getGardenLevel(cultivatorId);
   const method = findCultivationMethod(input.actionId);
@@ -588,79 +692,99 @@ export async function plantHerb(
   if (method.minGardenLevel > gardenLevel)
     throw new HerbGardenError('当前药圃等级尚未解锁此培育法', 403);
 
-  const context = await db.transaction(async (tx): Promise<NarrativeContext> => {
-    const [occupied] = await tx
-      .select({ id: herbGardenPlots.id })
-      .from(herbGardenPlots)
-      .where(
-        and(
-          eq(herbGardenPlots.cultivatorId, cultivatorId),
-          eq(herbGardenPlots.slot, input.slot),
-        ),
-      )
-      .limit(1);
-    if (occupied) throw new HerbGardenError('这块灵畦已有灵植', 409);
-    const seed = await consumeMaterialById(tx, cultivatorId, input.seedMaterialId, 'seed');
-    const details = readSpiritSeedDetails(seed.details);
-    const spec = readSpiritSeedSpec(seed.details);
-    if (!details || !spec) throw new HerbGardenError('这枚种子缺少完整种性，无法播种', 400);
-    const snapshot: SeedSnapshot = {
-      name: seed.name,
-      description: seed.description ?? undefined,
-      rank: seed.rank as Quality,
-      element: (seed.element ?? undefined) as ElementType | undefined,
-      details,
-    };
-    const cost = await payMethodCost(tx, cultivatorId, method.id, input);
-    const rule = resolveCultivationMethod(spec, method.id, {
-      materialElement: cost.material?.element ?? cost.rootElement,
-      seedElement: snapshot.element,
-    });
-    const record = buildStageRecord({
-      stage: 'germination',
-      actionId: method.id,
-      actionName: method.name,
-      rule,
-    });
-    const now = new Date();
-    const readyAt = new Date(
-      now.getTime() + stageDurationMs('germination', snapshot.rank, rule.durationMultiplier, spec),
-    );
-    const [plot] = await tx
-      .insert(herbGardenPlots)
-      .values({
+  const context = await db.transaction(
+    async (tx): Promise<NarrativeContext> => {
+      const [occupied] = await tx
+        .select({ id: herbGardenPlots.id })
+        .from(herbGardenPlots)
+        .where(
+          and(
+            eq(herbGardenPlots.cultivatorId, cultivatorId),
+            eq(herbGardenPlots.slot, input.slot),
+          ),
+        )
+        .limit(1);
+      if (occupied) throw new HerbGardenError('这块灵畦已有灵植', 409);
+      const seed = await consumeMaterialById(
+        tx,
         cultivatorId,
-        slot: input.slot,
+        input.seedMaterialId,
+        'seed',
+      );
+      const details = readSpiritSeedDetails(seed.details);
+      const spec = readSpiritSeedSpec(seed.details);
+      if (!details || !spec)
+        throw new HerbGardenError('这枚种子缺少完整种性，无法播种', 400);
+      if (!canCultivateSeedQuality(actor.realm, seed.rank as Quality)) {
+        throw new HerbGardenError(
+          `当前${actor.realm}最高只能培育${getHerbGardenMaxSeedQuality(actor.realm)}灵种`,
+          403,
+        );
+      }
+      const snapshot: SeedSnapshot = {
+        name: seed.name,
+        description: seed.description ?? undefined,
+        rank: seed.rank as Quality,
+        element: (seed.element ?? undefined) as ElementType | undefined,
+        details,
+      };
+      const cost = await payMethodCost(tx, cultivatorId, method.id, input);
+      const rule = resolveCultivationMethod(spec, method.id, {
+        materialElement: cost.material?.element ?? cost.rootElement,
+        seedElement: snapshot.element,
+      });
+      const record = buildStageRecord({
         stage: 'germination',
-        seedName: snapshot.name,
-        seedRank: snapshot.rank,
-        seedElement: snapshot.element ?? null,
-        seedSnapshot: snapshot,
-        stageHistory: [record],
-        currentScore: record.scoreDelta,
-        plantedAt: now,
-        readyAt,
-      })
-      .returning({ id: herbGardenPlots.id });
-    await tx.insert(herbGardenInteractions).values({
-      plotId: plot.id,
-      ownerId: cultivatorId,
-      actorId: cultivatorId,
-      action: 'plant',
-      plantName: snapshot.name,
-      payload: { slot: input.slot, actionId: method.id },
-    });
-    return {
-      plotId: plot.id,
-      seed: snapshot,
-      spec,
-      record,
-      rule,
-      methodTags: method.methodTags,
-      environmentTags: method.environmentTags,
-      cost,
-    };
-  });
+        actionId: method.id,
+        actionName: method.name,
+        rule,
+      });
+      const now = new Date();
+      const readyAt = new Date(
+        now.getTime() +
+          stageDurationMs(
+            'germination',
+            snapshot.rank,
+            rule.durationMultiplier,
+            spec,
+          ),
+      );
+      const [plot] = await tx
+        .insert(herbGardenPlots)
+        .values({
+          cultivatorId,
+          slot: input.slot,
+          stage: 'germination',
+          seedName: snapshot.name,
+          seedRank: snapshot.rank,
+          seedElement: snapshot.element ?? null,
+          seedSnapshot: snapshot,
+          stageHistory: [record],
+          currentScore: record.scoreDelta,
+          plantedAt: now,
+          readyAt,
+        })
+        .returning({ id: herbGardenPlots.id });
+      await tx.insert(herbGardenInteractions).values({
+        plotId: plot.id,
+        ownerId: cultivatorId,
+        actorId: cultivatorId,
+        action: 'plant',
+        plantName: snapshot.name,
+        payload: { slot: input.slot, actionId: method.id },
+      });
+      return {
+        plotId: plot.id,
+        seed: snapshot,
+        spec,
+        record,
+        rule,
+        methodTags: method.methodTags,
+        environmentTags: method.environmentTags,
+        cost,
+      };
+    },
+  );
   await enrichStageNarrative(context);
 }
 
@@ -692,7 +816,9 @@ export async function cultivatePlot(
     const currentStage = plot.stage as HerbGardenStage;
     if (currentStage === 'formation' || currentStage === 'ready')
       throw new HerbGardenError('灵植已经进入凝华阶段，无需继续培育', 409);
-    const nextStage = nextHerbGardenStage(currentStage) as ActiveHerbGardenStage;
+    const nextStage = nextHerbGardenStage(
+      currentStage,
+    ) as ActiveHerbGardenStage;
     const snapshot = plot.seedSnapshot as SeedSnapshot;
     const spec = seedSpec(snapshot);
     let cost: CostContext = {};
@@ -718,7 +844,8 @@ export async function cultivatePlot(
       environmentTags = method.environmentTags;
     } else {
       const formation = findFormationMethod(input.actionId);
-      if (!formation) throw new HerbGardenError('凝华阶段需要选择成型方式', 400);
+      if (!formation)
+        throw new HerbGardenError('凝华阶段需要选择成型方式', 400);
       formationMethodId = formation.id;
       rule = resolveFormationRule(spec, formation.id);
       actionName = formation.name;
@@ -732,10 +859,20 @@ export async function cultivatePlot(
       actionName,
       rule,
     });
-    const history = [...((plot.stageHistory as StoredStageRecord[] | null) ?? []), record];
-    const nextScore = plot.currentScore + record.scoreDelta + Math.floor((cost.rootStrength ?? 0) / 25);
+    const journal = (plot.stageHistory as StoredJournalEntry[] | null) ?? [];
+    const history = [...journal, record];
+    const nextScore =
+      plot.currentScore +
+      record.scoreDelta +
+      Math.floor((cost.rootStrength ?? 0) / 25);
     const readyAt = new Date(
-      Date.now() + stageDurationMs(nextStage, snapshot.rank, rule.durationMultiplier, spec),
+      Date.now() +
+        stageDurationMs(
+          nextStage,
+          snapshot.rank,
+          rule.durationMultiplier,
+          spec,
+        ),
     );
     let outcome: OutcomeSnapshot | undefined;
     if (formationMethodId) {
@@ -746,16 +883,47 @@ export async function cultivatePlot(
         Math.random(),
         snapshot.rank,
       );
-      const rank = resolveOutcomeQuality(snapshot.rank, nextScore, Math.random());
-      const quantity = Math.max(5, Math.min(8, 5 + Math.floor(nextScore / 28)));
+      const rank = resolveOutcomeQuality(
+        snapshot.rank,
+        nextScore,
+        Math.random(),
+      );
+      const quantity = resolveOutcomeQuantity(
+        kind,
+        formationMethodId,
+        nextScore,
+        Math.random(),
+      );
       outcome = fallbackOutcome(
         snapshot,
         kind,
         rank,
         quantity,
         formationMethodId,
-        history,
+        history.filter(isCultivationRecord),
       );
+      if (kind === 'spirit_fruit') {
+        const settled = resolveSpiritFruitEffects(rank, snapshot.element);
+        outcome.spiritFruitSpec = {
+          kind: 'spirit_fruit',
+          family: settled.family,
+          operations: settled.operations,
+          consumeRules: {
+            scene: 'out_of_battle_only',
+            quotaCategory:
+              settled.family === 'cultivation' ? 'cultivation' : 'none',
+          },
+          cultivationMeta: {
+            source: 'herb_garden',
+            element: snapshot.element,
+            tags: ['灵田'],
+            sourceSeedName: snapshot.name,
+            manifestationTags: history
+              .filter(isCultivationRecord)
+              .map((entry) => entry.manifestation),
+          },
+        };
+      }
     }
     await tx
       .update(herbGardenPlots)
@@ -791,7 +959,162 @@ export async function cultivatePlot(
   });
   await enrichStageNarrative(result.context);
   if (result.outcome)
-    await enrichOutcomeName(result.context.plotId, result.context.seed, result.outcome);
+    await enrichOutcomeName(
+      result.context.plotId,
+      result.context.seed,
+      result.outcome,
+    );
+}
+
+async function replaceJournalEntry(
+  plotId: string,
+  recordId: string,
+  replacement: StoredJournalEntry,
+): Promise<void> {
+  const [plot] = await db
+    .select({ history: herbGardenPlots.stageHistory })
+    .from(herbGardenPlots)
+    .where(eq(herbGardenPlots.id, plotId))
+    .limit(1);
+  if (!plot) return;
+  const history = ((plot.history as StoredJournalEntry[] | null) ?? []).map(
+    (entry) => (entry.recordId === recordId ? replacement : entry),
+  );
+  await db
+    .update(herbGardenPlots)
+    .set({ stageHistory: history })
+    .where(eq(herbGardenPlots.id, plotId));
+}
+
+export async function observeHerbGardenPlot(
+  cultivatorId: string,
+  plotId: string,
+  observation: HerbGardenObservationKind,
+): Promise<void> {
+  const context = await db.transaction(async (tx) => {
+    const [plot] = await tx
+      .select()
+      .from(herbGardenPlots)
+      .where(
+        and(
+          eq(herbGardenPlots.id, plotId),
+          eq(herbGardenPlots.cultivatorId, cultivatorId),
+        ),
+      )
+      .limit(1)
+      .for('update');
+    if (!plot) throw new HerbGardenError('这株灵植不在你的灵田中', 404);
+    if (plot.stage === 'formation' && plot.readyAt.getTime() <= Date.now())
+      throw new HerbGardenError('灵植已经成熟，可直接收获', 409);
+    const stage = plot.stage as ActiveHerbGardenStage;
+    const history = (plot.stageHistory as StoredJournalEntry[] | null) ?? [];
+    const used = history.filter(
+      (entry) => isObservationRecord(entry) && entry.stage === stage,
+    ).length;
+    if (used >= HERB_GARDEN_MAX_OBSERVATIONS_PER_STAGE)
+      throw new HerbGardenError('本阶段的辨察次数已用尽', 409);
+    const snapshot = plot.seedSnapshot as SeedSnapshot;
+    const safeFact = observationSafeFact(seedSpec(snapshot), observation);
+    const record: HerbGardenObservationRecord = {
+      kind: 'observation',
+      recordId: crypto.randomUUID(),
+      stage,
+      observation,
+      observationName: OBSERVATION_NAMES[observation],
+      safeFact,
+      narrative: safeFact,
+      resolvedAt: new Date().toISOString(),
+      narrativeSource: 'fallback',
+    };
+    await tx
+      .update(herbGardenPlots)
+      .set({ stageHistory: [...history, record] })
+      .where(eq(herbGardenPlots.id, plotId));
+    return { snapshot, record };
+  });
+  const narrative = await HerbGardenNarrativeService.narrateObservation({
+    seedName: context.snapshot.name,
+    seedDescription: context.snapshot.description,
+    stage: context.record.stage,
+    observationName: context.record.observationName,
+    safeFact: context.record.safeFact,
+  });
+  if (narrative) {
+    await replaceJournalEntry(plotId, context.record.recordId, {
+      ...context.record,
+      narrative,
+      narrativeSource: 'llm',
+    });
+  }
+}
+
+export async function consultHerbGardenCaretaker(
+  cultivatorId: string,
+  plotId: string,
+  rawQuestion: string,
+): Promise<void> {
+  const question = rawQuestion.trim();
+  if (question.length < 2 || question.length > 120)
+    throw new HerbGardenError('问话需为 2 至 120 个字', 400);
+  const context = await db.transaction(async (tx) => {
+    const [plot] = await tx
+      .select()
+      .from(herbGardenPlots)
+      .where(
+        and(
+          eq(herbGardenPlots.id, plotId),
+          eq(herbGardenPlots.cultivatorId, cultivatorId),
+        ),
+      )
+      .limit(1)
+      .for('update');
+    if (!plot) throw new HerbGardenError('这株灵植不在你的灵田中', 404);
+    if (plot.stage === 'formation' && plot.readyAt.getTime() <= Date.now())
+      throw new HerbGardenError('灵植已经成熟，可直接收获', 409);
+    const stage = plot.stage as ActiveHerbGardenStage;
+    const history = (plot.stageHistory as StoredJournalEntry[] | null) ?? [];
+    const used = history.filter(
+      (entry) => isConsultationRecord(entry) && entry.stage === stage,
+    ).length;
+    if (used >= HERB_GARDEN_MAX_QUESTIONS_PER_STAGE)
+      throw new HerbGardenError('本阶段请教次数已用尽', 409);
+    const discoveredClues = history
+      .filter(isObservationRecord)
+      .map((entry) => entry.safeFact);
+    const snapshot = plot.seedSnapshot as SeedSnapshot;
+    const fallbackReply = discoveredClues.length
+      ? `从已见征兆看，${discoveredClues.at(-1)}可先依此线索斟酌，不必急着断定种性。`
+      : '此株尚无可依据的草木征兆。可先察叶色、辨灵气，再来问我。';
+    const record: HerbGardenConsultationRecord = {
+      kind: 'consultation',
+      recordId: crypto.randomUUID(),
+      stage,
+      question,
+      reply: fallbackReply,
+      resolvedAt: new Date().toISOString(),
+      narrativeSource: 'fallback',
+    };
+    await tx
+      .update(herbGardenPlots)
+      .set({ stageHistory: [...history, record] })
+      .where(eq(herbGardenPlots.id, plotId));
+    return { snapshot, record, discoveredClues };
+  });
+  if (!context.discoveredClues.length) return;
+  const reply = await HerbGardenNarrativeService.answerConsultation({
+    seedName: context.snapshot.name,
+    seedDescription: context.snapshot.description,
+    stage: context.record.stage,
+    question,
+    discoveredClues: context.discoveredClues,
+  });
+  if (reply) {
+    await replaceJournalEntry(plotId, context.record.recordId, {
+      ...context.record,
+      reply,
+      narrativeSource: 'llm',
+    });
+  }
 }
 
 async function awardOutcome(
@@ -802,18 +1125,25 @@ async function awardOutcome(
   element?: ElementType,
 ) {
   if (outcome.kind === 'spirit_fruit') {
-    const value = Math.max(20, (QUALITY_ORDER.indexOf(outcome.rank) + 1) * 35);
-    const spec: SpiritFruitSpec = {
+    const settled = resolveSpiritFruitEffects(outcome.rank, element);
+    const spec: SpiritFruitSpec = outcome.spiritFruitSpec ?? {
       kind: 'spirit_fruit',
-      family: 'cultivation',
-      operations: [{ type: 'gain_progress', target: 'cultivation_exp', value }],
-      consumeRules: { scene: 'out_of_battle_only', quotaCategory: 'cultivation' },
+      family: settled.family,
+      operations: settled.operations,
+      consumeRules: {
+        scene: 'out_of_battle_only',
+        quotaCategory:
+          settled.family === 'cultivation' ? 'cultivation' : 'none',
+      },
       cultivationMeta: {
         source: 'herb_garden',
         element,
-        tags: ['灵田', ...outcome.cultivation.manifestationTags],
+        tags: ['灵田'],
+        sourceSeedName: outcome.cultivation.sourceSeedName,
+        manifestationTags: outcome.cultivation.manifestationTags,
       },
     };
+    const value = Math.max(20, (QUALITY_ORDER.indexOf(outcome.rank) + 1) * 35);
     const [existing] = await tx
       .select({ id: consumables.id, quantity: consumables.quantity })
       .from(consumables)
@@ -884,8 +1214,10 @@ export async function harvestHerb(
       .for('update');
     if (!plot) throw new HerbGardenError('灵植尚未凝华成熟，或已经被收获', 409);
     const outcome = plot.outcomeSnapshot as OutcomeSnapshot | null;
-    if (!outcome) throw new HerbGardenError('灵植成型记录缺失，请稍后再试', 500);
-    const remaining = plot.remainingYield > 0 ? plot.remainingYield : outcome.quantity;
+    if (!outcome)
+      throw new HerbGardenError('灵植成型记录缺失，请稍后再试', 500);
+    const remaining =
+      plot.remainingYield > 0 ? plot.remainingYield : outcome.quantity;
     await awardOutcome(
       tx,
       cultivatorId,
@@ -934,7 +1266,8 @@ export async function harvestAllReadyHerbs(
     try {
       results.push(await harvestHerb(cultivatorId, row.id));
     } catch (error) {
-      if (!(error instanceof HerbGardenError) || error.status !== 409) throw error;
+      if (!(error instanceof HerbGardenError) || error.status !== 409)
+        throw error;
     }
   }
   return results;
@@ -945,7 +1278,8 @@ export async function helpFriendPlot(
   ownerId: string,
   plotId: string,
 ): Promise<void> {
-  if (actorId === ownerId) throw new HerbGardenError('自己的灵田无需好友帮助', 400);
+  if (actorId === ownerId)
+    throw new HerbGardenError('自己的灵田无需好友帮助', 400);
   await assertFriend(actorId, ownerId);
   await db.transaction(async (tx) => {
     const [plot] = await tx
@@ -990,7 +1324,10 @@ export async function helpFriendPlot(
       .update(herbGardenPlots)
       .set({
         readyAt: new Date(
-          Math.max(Date.now() + 60_000, plot.readyAt.getTime() - remaining * 0.05),
+          Math.max(
+            Date.now() + 60_000,
+            plot.readyAt.getTime() - remaining * 0.05,
+          ),
         ),
       })
       .where(eq(herbGardenPlots.id, plotId));
@@ -1002,7 +1339,8 @@ export async function stealFriendHerb(
   ownerId: string,
   plotId: string,
 ): Promise<{ name: string; kind: OutcomeSnapshot['kind']; quantity: 1 }> {
-  if (actorId === ownerId) throw new HerbGardenError('自己的灵植直接收获即可', 400);
+  if (actorId === ownerId)
+    throw new HerbGardenError('自己的灵植直接收获即可', 400);
   await assertFriend(actorId, ownerId);
   return db.transaction(async (tx) => {
     const [plot] = await tx
@@ -1021,7 +1359,8 @@ export async function stealFriendHerb(
     if (!plot) throw new HerbGardenError('这里没有可采的成熟灵植', 409);
     const outcome = plot.outcomeSnapshot as OutcomeSnapshot | null;
     if (!outcome) throw new HerbGardenError('灵植成型记录缺失', 500);
-    const initialYield = plot.remainingYield > 0 ? plot.remainingYield : outcome.quantity;
+    const initialYield =
+      plot.remainingYield > 0 ? plot.remainingYield : outcome.quantity;
     const stealLimit =
       plot.stealLimit > 0
         ? plot.stealLimit
@@ -1085,7 +1424,9 @@ async function buildLogs(ownerId: string): Promise<HerbGardenLogView[]> {
   const actors = await db
     .select({ id: cultivators.id, name: cultivators.name })
     .from(cultivators)
-    .where(inArray(cultivators.id, [...new Set(rows.map((row) => row.actorId))]));
+    .where(
+      inArray(cultivators.id, [...new Set(rows.map((row) => row.actorId))]),
+    );
   const names = new Map(actors.map((actor) => [actor.id, actor.name]));
   return rows.map((row) => {
     const actorName = names.get(row.actorId) ?? '一位道友';
@@ -1110,7 +1451,9 @@ async function buildLogs(ownerId: string): Promise<HerbGardenLogView[]> {
   });
 }
 
-async function buildFriendList(cultivatorId: string): Promise<HerbGardenFriendView[]> {
+async function buildFriendList(
+  cultivatorId: string,
+): Promise<HerbGardenFriendView[]> {
   const relations = await db
     .select({ friendId: cultivatorFriends.friendCultivatorId })
     .from(cultivatorFriends)
@@ -1119,11 +1462,21 @@ async function buildFriendList(cultivatorId: string): Promise<HerbGardenFriendVi
   if (!ids.length) return [];
   const [friends, plots] = await Promise.all([
     db
-      .select({ id: cultivators.id, name: cultivators.name, realm: cultivators.realm })
+      .select({
+        id: cultivators.id,
+        name: cultivators.name,
+        realm: cultivators.realm,
+      })
       .from(cultivators)
-      .where(and(inArray(cultivators.id, ids), eq(cultivators.status, 'active'))),
+      .where(
+        and(inArray(cultivators.id, ids), eq(cultivators.status, 'active')),
+      ),
     db
-      .select({ ownerId: herbGardenPlots.cultivatorId, stage: herbGardenPlots.stage, readyAt: herbGardenPlots.readyAt })
+      .select({
+        ownerId: herbGardenPlots.cultivatorId,
+        stage: herbGardenPlots.stage,
+        readyAt: herbGardenPlots.readyAt,
+      })
       .from(herbGardenPlots)
       .where(inArray(herbGardenPlots.cultivatorId, ids)),
   ]);
@@ -1142,7 +1495,10 @@ async function buildFriendList(cultivatorId: string): Promise<HerbGardenFriendVi
         canVisit: true,
       };
     })
-    .sort((a, b) => b.readyPlots - a.readyPlots || a.name.localeCompare(b.name, 'zh-CN'));
+    .sort(
+      (a, b) =>
+        b.readyPlots - a.readyPlots || a.name.localeCompare(b.name, 'zh-CN'),
+    );
 }
 
 export async function getHerbGardenState(
@@ -1150,7 +1506,7 @@ export async function getHerbGardenState(
   ownerId = viewerId,
 ): Promise<HerbGardenState> {
   await assertFriend(viewerId, ownerId);
-  const ownerName = await assertActiveCultivator(ownerId);
+  const owner = await assertActiveCultivator(ownerId);
   await ensureGardenInitialized(ownerId);
   const isSelf = viewerId === ownerId;
   const [
@@ -1170,18 +1526,42 @@ export async function getHerbGardenState(
       .from(herbGardenProfiles)
       .where(eq(herbGardenProfiles.cultivatorId, ownerId))
       .limit(1),
-    db.select().from(herbGardenPlots).where(eq(herbGardenPlots.cultivatorId, ownerId)),
+    db
+      .select()
+      .from(herbGardenPlots)
+      .where(eq(herbGardenPlots.cultivatorId, ownerId)),
     buildLogs(ownerId),
     getGardenLevel(ownerId),
     isSelf
       ? db
-          .select({ id: materials.id, name: materials.name, rank: materials.rank, element: materials.element, description: materials.description, details: materials.details, quantity: materials.quantity })
+          .select({
+            id: materials.id,
+            name: materials.name,
+            rank: materials.rank,
+            element: materials.element,
+            description: materials.description,
+            details: materials.details,
+            quantity: materials.quantity,
+          })
           .from(materials)
-          .where(and(eq(materials.cultivatorId, ownerId), eq(materials.type, 'seed'), gt(materials.quantity, 0)))
+          .where(
+            and(
+              eq(materials.cultivatorId, ownerId),
+              eq(materials.type, 'seed'),
+              gt(materials.quantity, 0),
+            ),
+          )
       : Promise.resolve([]),
     isSelf
       ? db
-          .select({ id: materials.id, name: materials.name, type: materials.type, rank: materials.rank, element: materials.element, quantity: materials.quantity })
+          .select({
+            id: materials.id,
+            name: materials.name,
+            type: materials.type,
+            rank: materials.rank,
+            element: materials.element,
+            quantity: materials.quantity,
+          })
           .from(materials)
           .where(
             and(
@@ -1193,7 +1573,10 @@ export async function getHerbGardenState(
       : Promise.resolve([]),
     isSelf
       ? db
-          .select({ element: spiritualRoots.element, strength: spiritualRoots.strength })
+          .select({
+            element: spiritualRoots.element,
+            strength: spiritualRoots.strength,
+          })
           .from(spiritualRoots)
           .where(eq(spiritualRoots.cultivatorId, ownerId))
       : Promise.resolve([]),
@@ -1201,7 +1584,10 @@ export async function getHerbGardenState(
     isSelf
       ? Promise.resolve([])
       : db
-          .select({ plotId: herbGardenInteractions.plotId, action: herbGardenInteractions.action })
+          .select({
+            plotId: herbGardenInteractions.plotId,
+            action: herbGardenInteractions.action,
+          })
           .from(herbGardenInteractions)
           .where(
             and(
@@ -1211,7 +1597,10 @@ export async function getHerbGardenState(
             ),
           ),
     db
-      .select({ plotId: herbGardenInteractions.plotId, count: sql<number>`count(*)::int` })
+      .select({
+        plotId: herbGardenInteractions.plotId,
+        count: sql<number>`count(*)::int`,
+      })
       .from(herbGardenInteractions)
       .where(
         and(
@@ -1229,7 +1618,9 @@ export async function getHerbGardenState(
         new Set([...(actionsByPlot.get(action.plotId) ?? []), action.action]),
       );
   const helpers = new Map(
-    helperRows.flatMap((row) => (row.plotId ? [[row.plotId, row.count] as const] : [])),
+    helperRows.flatMap((row) =>
+      row.plotId ? [[row.plotId, row.count] as const] : [],
+    ),
   );
   const now = Date.now();
   const bySlot = new Map(rows.map((row) => [row.slot, row]));
@@ -1240,12 +1631,17 @@ export async function getHerbGardenState(
     const stage = row.stage as HerbGardenStage;
     const elapsed = row.readyAt.getTime() <= now;
     const ready = stage === 'formation' && elapsed;
-    const status = ready ? ('ready' as const) : elapsed ? ('awaiting_action' as const) : ('cultivating' as const);
+    const status = ready
+      ? ('ready' as const)
+      : elapsed
+        ? ('awaiting_action' as const)
+        : ('cultivating' as const);
     const snapshot = row.seedSnapshot as SeedSnapshot;
     const actions = actionsByPlot.get(row.id) ?? new Set<string>();
     const helperCount = helpers.get(row.id) ?? 0;
     const outcome = row.outcomeSnapshot as OutcomeSnapshot | null;
-    const effectiveYield = row.remainingYield > 0 ? row.remainingYield : (outcome?.quantity ?? 0);
+    const effectiveYield =
+      row.remainingYield > 0 ? row.remainingYield : (outcome?.quantity ?? 0);
     return {
       slot,
       plotId: row.id,
@@ -1257,10 +1653,37 @@ export async function getHerbGardenState(
       description: snapshot.description,
       plantedAt: row.plantedAt.toISOString(),
       readyAt: row.readyAt.toISOString(),
-      history: isSelf ? ((row.stageHistory as StoredStageRecord[] | null) ?? []) : undefined,
+      history: isSelf
+        ? ((row.stageHistory as StoredJournalEntry[] | null) ?? [])
+        : undefined,
+      observationAllowance: isSelf
+        ? {
+            used: (
+              (row.stageHistory as StoredJournalEntry[] | null) ?? []
+            ).filter(
+              (entry) => isObservationRecord(entry) && entry.stage === stage,
+            ).length,
+            limit: HERB_GARDEN_MAX_OBSERVATIONS_PER_STAGE,
+          }
+        : undefined,
+      questionAllowance: isSelf
+        ? {
+            used: (
+              (row.stageHistory as StoredJournalEntry[] | null) ?? []
+            ).filter(
+              (entry) => isConsultationRecord(entry) && entry.stage === stage,
+            ).length,
+            limit: HERB_GARDEN_MAX_QUESTIONS_PER_STAGE,
+          }
+        : undefined,
       outcomePreview:
         ready && outcome
-          ? { name: outcome.name, kind: outcome.kind, rank: outcome.rank }
+          ? {
+              name: outcome.name,
+              kind: outcome.kind,
+              rank: outcome.rank,
+              operations: outcome.spiritFruitSpec?.operations,
+            }
           : undefined,
       remainingYield: ready ? effectiveYield : undefined,
       stealLimit: row.stealLimit,
@@ -1280,26 +1703,35 @@ export async function getHerbGardenState(
         !actions.has('steal'),
     };
   });
+  const maxSeedQuality = getHerbGardenMaxSeedQuality(owner.realm);
   const seedViews = seeds.flatMap((seed) => {
     const details = readSpiritSeedDetails(seed.details);
-    return details
-      ? [
-          {
-            materialId: seed.id,
-            name: seed.name,
-            rank: seed.rank as Quality,
-            element: (seed.element ?? undefined) as ElementType | undefined,
-            description: seed.description ?? undefined,
-            fingerprint: details.fingerprint,
-            quantity: seed.quantity,
-          },
-        ]
-      : [];
+    if (!details) return [];
+    const rank = seed.rank as Quality;
+    const plantable = canCultivateSeedQuality(owner.realm, rank);
+    return [
+      {
+        materialId: seed.id,
+        name: seed.name,
+        rank,
+        element: (seed.element ?? undefined) as ElementType | undefined,
+        description: seed.description ?? undefined,
+        fingerprint: details.fingerprint,
+        quantity: seed.quantity,
+        plantable,
+        lockedReason: plantable
+          ? undefined
+          : `当前${owner.realm}最高可育${maxSeedQuality}灵种`,
+      },
+    ];
   });
   return {
-    owner: { cultivatorId: ownerId, name: ownerName, isSelf },
+    owner: { cultivatorId: ownerId, name: owner.name, isSelf },
     gardenLevel,
-    methods: CULTIVATION_METHODS.filter((method) => method.minGardenLevel <= gardenLevel),
+    progression: { realm: owner.realm, maxSeedQuality },
+    methods: CULTIVATION_METHODS.filter(
+      (method) => method.minGardenLevel <= gardenLevel,
+    ),
     formationMethods: [...FORMATION_METHODS],
     plots,
     seeds: seedViews,
@@ -1319,7 +1751,8 @@ export async function getHerbGardenState(
     friends,
     summary: {
       planted: plots.filter((plot) => plot.status !== 'empty').length,
-      awaitingAction: plots.filter((plot) => plot.status === 'awaiting_action').length,
+      awaitingAction: plots.filter((plot) => plot.status === 'awaiting_action')
+        .length,
       ready: plots.filter((plot) => plot.status === 'ready').length,
       totalHarvests: profiles[0]?.totalHarvests ?? 0,
     },

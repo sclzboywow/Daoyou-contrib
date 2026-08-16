@@ -2,16 +2,21 @@ import { requireActiveCultivatorRef } from '@server/lib/hono/middleware';
 import { jsonWithStatus } from '@server/lib/hono/response';
 import type { AppEnv } from '@server/lib/hono/types';
 import {
+  consultHerbGardenCaretaker,
   cultivatePlot,
   getHerbGardenState,
   harvestAllReadyHerbs,
   harvestHerb,
   helpFriendPlot,
   HerbGardenError,
+  observeHerbGardenPlot,
   plantHerb,
   stealFriendHerb,
 } from '@server/lib/services/HerbGardenService';
-import { HERB_GARDEN_ACTION_VALUES } from '@shared/contracts/herbGarden';
+import {
+  HERB_GARDEN_ACTION_VALUES,
+  HERB_GARDEN_OBSERVATION_VALUES,
+} from '@shared/contracts/herbGarden';
 import { ELEMENT_VALUES } from '@shared/types/constants';
 import { Hono, type Context } from 'hono';
 import { z } from 'zod';
@@ -31,6 +36,10 @@ const CultivateSchema = z.object({
   materialId: z.string().uuid().optional(),
   rootElement: z.enum(ELEMENT_VALUES).optional(),
 });
+const ObserveSchema = z.object({
+  observation: z.enum(HERB_GARDEN_OBSERVATION_VALUES),
+});
+const ConsultSchema = z.object({ question: z.string().trim().min(2).max(120) });
 
 const PlotIdSchema = z.object({ plotId: z.string().uuid() });
 const VisitSchema = z.object({
@@ -114,6 +123,50 @@ router.post(
       const result = await harvestHerb(cultivator.cultivatorId, plotId);
       const garden = await getHerbGardenState(cultivator.cultivatorId);
       return c.json({ result, garden });
+    } catch (error) {
+      return handleError(c, error);
+    }
+  },
+);
+
+router.post(
+  '/plots/:plotId/observe',
+  requireActiveCultivatorRef(),
+  async (c) => {
+    const cultivator = c.get('activeCultivatorRef');
+    if (!cultivator) return c.json({ error: '未授权访问' }, 401);
+    try {
+      const { plotId } = PlotIdSchema.parse({ plotId: c.req.param('plotId') });
+      const input = ObserveSchema.parse(await c.req.json());
+      await observeHerbGardenPlot(
+        cultivator.cultivatorId,
+        plotId,
+        input.observation,
+      );
+      const garden = await getHerbGardenState(cultivator.cultivatorId);
+      return c.json({ garden, message: '新的草木征兆已记入札记。' });
+    } catch (error) {
+      return handleError(c, error);
+    }
+  },
+);
+
+router.post(
+  '/plots/:plotId/consult',
+  requireActiveCultivatorRef(),
+  async (c) => {
+    const cultivator = c.get('activeCultivatorRef');
+    if (!cultivator) return c.json({ error: '未授权访问' }, 401);
+    try {
+      const { plotId } = PlotIdSchema.parse({ plotId: c.req.param('plotId') });
+      const input = ConsultSchema.parse(await c.req.json());
+      await consultHerbGardenCaretaker(
+        cultivator.cultivatorId,
+        plotId,
+        input.question,
+      );
+      const garden = await getHerbGardenState(cultivator.cultivatorId);
+      return c.json({ garden, message: '药园执事已依据现有征兆作答。' });
     } catch (error) {
       return handleError(c, error);
     }

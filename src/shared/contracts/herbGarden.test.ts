@@ -1,12 +1,16 @@
 import {
   CULTIVATION_METHODS,
   FORMATION_METHODS,
+  canCultivateSeedQuality,
   createSpiritSeedDetails,
+  getHerbGardenMaxSeedQuality,
   nextHerbGardenStage,
   readSpiritSeedSpec,
   resolveCultivationMethod,
   resolveOutcomeKind,
   resolveOutcomeQuality,
+  resolveOutcomeQuantity,
+  resolveSpiritFruitEffects,
 } from './herbGarden';
 
 describe('spirit herb garden domain', () => {
@@ -69,8 +73,36 @@ describe('spirit herb garden domain', () => {
     const outcomes = [0, 0.5, 0.99].map((roll) =>
       resolveOutcomeQuality('玄品', 60, roll),
     );
-    expect(outcomes.every((quality) => ['灵品', '玄品', '真品'].includes(quality))).toBe(
-      true,
+    expect(
+      outcomes.every((quality) => ['灵品', '玄品', '真品'].includes(quality)),
+    ).toBe(true);
+  });
+
+  it('uses realm as a seed-quality cap without changing facility method unlocks', () => {
+    expect(getHerbGardenMaxSeedQuality('炼气')).toBe('灵品');
+    expect(canCultivateSeedQuality('筑基', '玄品')).toBe(true);
+    expect(canCultivateSeedQuality('筑基', '真品')).toBe(false);
+    expect(
+      CULTIVATION_METHODS.filter((method) => method.minGardenLevel <= 1),
+    ).toHaveLength(3);
+  });
+
+  it('settles formation-specific quantities on the server', () => {
+    expect(resolveOutcomeQuantity('herb', 'leaf_medicine', 30, 0)).toBe(7);
+    expect(resolveOutcomeQuantity('spirit_fruit', 'fruit_bloom', 30, 0)).toBe(
+      2,
     );
+    expect(resolveOutcomeQuantity('herb', 'fruit_bloom', 30, 0)).toBe(3);
+    expect(resolveOutcomeQuantity('tcdb', 'treasure_return', 30, 0)).toBe(1);
+  });
+
+  it('reuses registered condition operations for spirit fruit effects', () => {
+    const waterFruit = resolveSpiritFruitEffects('玄品', '水');
+    expect(waterFruit.family).toBe('mana');
+    expect(waterFruit.operations.map((operation) => operation.type)).toEqual([
+      'restore_resource',
+      'gain_progress',
+    ]);
+    expect(resolveSpiritFruitEffects('真品', '雷').family).toBe('insight');
   });
 });

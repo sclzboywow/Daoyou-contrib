@@ -1,19 +1,20 @@
 import { InkBadge } from '@app/components/ui/InkBadge';
 import { ItemCard } from '@app/components/ui/ItemCard';
 import { ScoreMark } from '@app/components/ui/ScoreMark';
-import { isPillConsumable, isTalismanConsumable } from '@shared/lib/consumables';
+import {
+  isPillConsumable,
+  isSpiritFruitConsumable,
+  isTalismanConsumable,
+} from '@shared/lib/consumables';
+import { CONSUMABLE_TYPE_DISPLAY_MAP } from '@shared/lib/gameConceptDisplay';
 import { calculatePillScore } from '@shared/lib/pillScore';
 import type { CultivatorCondition } from '@shared/types/condition';
 import type { RealmType } from '@shared/types/constants';
 import type { Consumable } from '@shared/types/cultivator';
-import { CONSUMABLE_TYPE_DISPLAY_MAP } from '@shared/lib/gameConceptDisplay';
 import type { ReactNode } from 'react';
-import {
-  PillAppearanceMark,
-  PillKeywordLine,
-} from './pillDisplayComponents';
-import { toPillDisplayModel } from './pillDisplayModel';
 import { getConsumableListSummary } from './consumableListSummary';
+import { PillAppearanceMark, PillKeywordLine } from './pillDisplayComponents';
+import { describePillOperation, toPillDisplayModel } from './pillDisplayModel';
 import { getTalismanUsageHint } from './talismanDisplay';
 
 export interface ConsumableListCardProps {
@@ -50,8 +51,13 @@ function ConsumableMeta({
     showUsageHint && isTalismanConsumable(consumable)
       ? getTalismanUsageHint(consumable)
       : null;
+  const spiritFruitLabels = isSpiritFruitConsumable(consumable)
+    ? consumable.spec.operations.map(describePillOperation).slice(0, 2)
+    : null;
   const coreMeta = pillDisplay ? (
     <PillKeywordLine labels={pillDisplay.keywordLabels} />
+  ) : spiritFruitLabels ? (
+    <PillKeywordLine labels={spiritFruitLabels} />
   ) : usageHint ? (
     <div className="text-ink-primary text-xs">{usageHint}</div>
   ) : null;

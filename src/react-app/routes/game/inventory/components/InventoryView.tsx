@@ -52,6 +52,8 @@ export function InventoryView() {
     setMaterialElementFilter,
     setMaterialSort,
     resetMaterialFilters,
+    consumableKind,
+    setConsumableKind,
     selectedItem,
     isModalOpen,
     openItemDetail,
@@ -181,6 +183,8 @@ export function InventoryView() {
             }
             onConsume={handleConsume}
             onDiscard={(item) => openDiscardConfirm(item, 'consumable')}
+            kindFilter={consumableKind}
+            onKindFilterChange={setConsumableKind}
           />
         )}
 

@@ -1,6 +1,7 @@
 import type {
   HerbGardenActionId,
   HerbGardenHarvestResult,
+  HerbGardenObservationKind,
   HerbGardenState,
 } from '@shared/contracts/herbGarden';
 import type { ElementType } from '@shared/types/constants';
@@ -70,7 +71,8 @@ export function useHerbGarden(ownerId?: string) {
       if (document.visibilityState === 'visible') void reload();
     };
     document.addEventListener('visibilitychange', refreshVisible);
-    return () => document.removeEventListener('visibilitychange', refreshVisible);
+    return () =>
+      document.removeEventListener('visibilitychange', refreshVisible);
   }, [reload]);
 
   const mutate = useCallback(
@@ -142,6 +144,22 @@ export function useHerbGarden(ownerId?: string) {
     [mutate],
   );
 
+  const observe = useCallback(
+    (plotId: string, observation: HerbGardenObservationKind) =>
+      mutate<GardenResponse>(`/api/herb-garden/plots/${plotId}/observe`, {
+        observation,
+      }),
+    [mutate],
+  );
+
+  const consult = useCallback(
+    (plotId: string, question: string) =>
+      mutate<GardenResponse>(`/api/herb-garden/plots/${plotId}/consult`, {
+        question,
+      }),
+    [mutate],
+  );
+
   const harvestAll = useCallback(
     () =>
       mutate<GardenResponse & { results: HerbGardenHarvestResult[] }>(
@@ -181,6 +199,8 @@ export function useHerbGarden(ownerId?: string) {
     retry: reload,
     plant,
     cultivate,
+    observe,
+    consult,
     harvest,
     harvestAll,
     help,

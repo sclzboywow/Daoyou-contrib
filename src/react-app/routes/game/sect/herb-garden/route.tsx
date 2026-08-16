@@ -1,3 +1,4 @@
+import { describePillOperation } from '@app/components/feature/consumables';
 import {
   NpcConversation,
   type NpcConversationMessage,
@@ -12,14 +13,15 @@ import {
 } from '@app/components/feature/sect/room';
 import { useInkUI } from '@app/components/providers/InkUIProvider';
 import { InkButton } from '@app/components/ui/InkButton';
-import { cn } from '@shared/lib/cn';
 import type {
   CultivationMethodDefinition,
   HerbGardenActionId,
+  HerbGardenObservationKind,
   HerbGardenPlotView,
   HerbGardenState,
 } from '@shared/contracts/herbGarden';
 import { STANDARD_SECT_PRESENTATION } from '@shared/engine/sect';
+import { cn } from '@shared/lib/cn';
 import type { ElementType, MaterialType } from '@shared/types/constants';
 import { useEffect, useMemo, useState } from 'react';
 import { SectPermissionBoundary, SectScene } from '../components/SectScene';
@@ -47,7 +49,10 @@ type GardenMode = 'overview' | 'plot' | 'seeds' | 'logs' | 'friends';
 
 export default function SectHerbGardenPage() {
   return (
-    <SectPermissionBoundary permission="sect.herb_garden.view" sceneKey="herbGarden">
+    <SectPermissionBoundary
+      permission="sect.herb_garden.view"
+      sceneKey="herbGarden"
+    >
       <SectScene sceneKey="herbGarden" mood="garden">
         <SectRoutedRoom
           roomKey="herbGarden"
@@ -133,9 +138,19 @@ function HerbGardenCaretakerConversation({
           );
           notify('本阶段培育完成，新的草木征兆已写入值录。');
         }}
+        onObserve={async (observation) => {
+          await garden.observe(selectedPlot.plotId!, observation);
+          notify('新的草木征兆已记入札记。');
+        }}
+        onConsult={async (question) => {
+          await garden.consult(selectedPlot.plotId!, question);
+          notify('药园执事已依据现有征兆作答。');
+        }}
         onHarvest={async () => {
           const response = await garden.harvest(selectedPlot.plotId!);
-          notify(`收获「${response.result.name}」共 ${response.result.quantity} 份。`);
+          notify(
+            `收获「${response.result.name}」共 ${response.result.quantity} 份。`,
+          );
           returnToOverview();
         }}
         onHelp={async () => {
@@ -161,7 +176,7 @@ function HerbGardenCaretakerConversation({
           {
             id: 'seeds',
             speaker: actor.name,
-            body: '种子的外相只能作为线索，真正种性还要看每一阶段的草木反应。',
+            body: `种子的外相只能作为线索，真正种性还要看每一阶段的草木反应。你当前为${state.progression.realm}，最高可培育${state.progression.maxSeedQuality}灵种。`,
           },
         ]}
         error={garden.error}
@@ -232,7 +247,13 @@ function HerbGardenCaretakerConversation({
   const overviewOptions: NpcConversationOption[] = state.owner.isSelf
     ? [
         ...(state.summary.ready
-          ? [{ id: 'harvest-all', label: '收取所有成熟灵植', tone: 'primary' as const }]
+          ? [
+              {
+                id: 'harvest-all',
+                label: '收取所有成熟灵植',
+                tone: 'primary' as const,
+              },
+            ]
           : []),
         { id: 'seeds', label: '查看灵种匣' },
         { id: 'friends', label: '前往好友灵田' },
@@ -266,7 +287,9 @@ function HerbGardenCaretakerConversation({
                 (sum, result) => sum + result.quantity,
                 0,
               );
-              notify(`共收取 ${response.results.length} 畦，得到 ${total} 份产物。`);
+              notify(
+                `共收取 ${response.results.length} 畦，得到 ${total} 份产物。`,
+              );
             })
             .catch(() => undefined);
         } else onExit();
@@ -345,6 +368,8 @@ function PlotConversation(props: {
     rootElement?: ElementType,
   ): Promise<void>;
   onHarvest(): Promise<void>;
+  onObserve(observation: HerbGardenObservationKind): Promise<void>;
+  onConsult(question: string): Promise<void>;
   onHelp(): Promise<void>;
   onSteal(): Promise<void>;
 }) {
@@ -370,6 +395,7 @@ function PlotConversation(props: {
   const [actionId, setActionId] = useState<HerbGardenActionId | ''>('');
   const [materialId, setMaterialId] = useState('');
   const [rootElement, setRootElement] = useState<ElementType | ''>('');
+  const [question, setQuestion] = useState('');
   const [now, setNow] = useState(() => Date.now());
   useEffect(() => {
     const timer = window.setInterval(() => setNow(Date.now()), 30_000);
@@ -377,10 +403,10 @@ function PlotConversation(props: {
   }, []);
 
   const selectedSeedId = state.seeds.some(
-    (seed) => seed.materialId === seedId,
+    (seed) => seed.materialId === seedId && seed.plantable,
   )
     ? seedId
-    : (state.seeds[0]?.materialId ?? '');
+    : (state.seeds.find((seed) => seed.plantable)?.materialId ?? '');
   const selectedActionId = methodOptions.some(
     (methodOption) => methodOption.id === actionId,
   )
@@ -433,7 +459,13 @@ function PlotConversation(props: {
     messages.push({
       id: 'ready',
       speaker: props.actor.name,
-      body: `此株已凝成「${plot.outcomePreview.name}」，品阶为${plot.outcomePreview.rank}。`,
+      body: `此株已凝成「${plot.outcomePreview.name}」，品阶为${plot.outcomePreview.rank}，当前可收获 ${plot.remainingYield ?? 0} 份。${
+        plot.outcomePreview.operations?.length
+          ? ` 灵果效用：${plot.outcomePreview.operations
+              .map(describePillOperation)
+              .join('；')}。`
+          : ''
+      }`,
     });
 
   const needsDecision =
@@ -486,7 +518,8 @@ function PlotConversation(props: {
               onChange={setSeedId}
               options={state.seeds.map((seed) => ({
                 value: seed.materialId,
-                label: `${seed.name} · ${seed.rank} · 余 ${seed.quantity}`,
+                label: `${seed.name} · ${seed.rank} · 余 ${seed.quantity}${seed.lockedReason ? ` · ${seed.lockedReason}` : ''}`,
+                disabled: !seed.plantable,
               }))}
             />
           ) : null}
@@ -506,7 +539,9 @@ function PlotConversation(props: {
                     )}
                   >
                     <span>
-                      <strong className="block text-sm font-normal">{entry.name}</strong>
+                      <strong className="block text-sm font-normal">
+                        {entry.name}
+                      </strong>
                       <span className="text-ink-secondary mt-1 block text-xs leading-5">
                         {entry.description}
                       </span>
@@ -574,7 +609,98 @@ function PlotConversation(props: {
           </InkButton>
         </div>
       ) : null}
-      {plot.history?.length ? <CultivationJournal history={plot.history} /> : null}
+      {state.owner.isSelf &&
+      plot.status !== 'empty' &&
+      plot.status !== 'ready' ? (
+        <div className="border-ink/10 mt-5 space-y-4 border-t pt-4">
+          <div>
+            <div className="mb-2 flex items-center justify-between gap-3 text-xs">
+              <span className="text-ink-secondary">辨察草木</span>
+              <span className="text-ink-secondary">
+                {plot.observationAllowance?.used ?? 0}/
+                {plot.observationAllowance?.limit ?? 2}
+              </span>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              {(
+                [
+                  ['appearance', '察叶色'],
+                  ['aura', '辨灵气'],
+                  ['soil', '验土性'],
+                  ['root', '探根须'],
+                ] as const
+              ).map(([value, label]) => (
+                <InkButton
+                  key={value}
+                  variant="secondary"
+                  disabled={
+                    props.busy ||
+                    (plot.observationAllowance?.used ?? 0) >=
+                      (plot.observationAllowance?.limit ?? 2)
+                  }
+                  onClick={() =>
+                    void props.onObserve(value).catch(() => undefined)
+                  }
+                >
+                  {label}
+                </InkButton>
+              ))}
+            </div>
+          </div>
+          <form
+            className="space-y-2"
+            onSubmit={(event) => {
+              event.preventDefault();
+              const value = question.trim();
+              if (!value) return;
+              void props
+                .onConsult(value)
+                .then(() => setQuestion(''))
+                .catch(() => undefined);
+            }}
+          >
+            <div className="flex items-center justify-between gap-3 text-xs">
+              <label
+                htmlFor={`garden-question-${plot.plotId}`}
+                className="text-ink-secondary"
+              >
+                请教药园执事
+              </label>
+              <span className="text-ink-secondary">
+                {plot.questionAllowance?.used ?? 0}/
+                {plot.questionAllowance?.limit ?? 2}
+              </span>
+            </div>
+            <textarea
+              id={`garden-question-${plot.plotId}`}
+              value={question}
+              maxLength={120}
+              rows={2}
+              placeholder="例：这株灵植似乎更喜湿润土性吗？"
+              onChange={(event) => setQuestion(event.target.value)}
+              className="border-ink/15 bg-bgpaper/70 focus-visible:outline-crimson w-full resize-y border px-3 py-2 text-sm leading-6 focus-visible:outline-2"
+            />
+            <InkButton
+              type="submit"
+              variant="secondary"
+              disabled={
+                props.busy ||
+                question.trim().length < 2 ||
+                (plot.questionAllowance?.used ?? 0) >=
+                  (plot.questionAllowance?.limit ?? 2)
+              }
+            >
+              送出问话
+            </InkButton>
+          </form>
+          <p className="text-ink-secondary text-xs leading-5">
+            执事只依据你已发现的征兆作答；养护方法、消耗与收获仍由固定规则结算。
+          </p>
+        </div>
+      ) : null}
+      {plot.history?.length ? (
+        <CultivationJournal history={plot.history} />
+      ) : null}
     </NpcConversation>
   );
 }
@@ -588,17 +714,51 @@ function CultivationJournal({
     <div className="border-ink/10 mt-5 border-t pt-4">
       <p className="text-ink-secondary mb-2 text-xs">培育札记</p>
       <div className="space-y-3">
-        {history.map((record) => (
-          <div key={record.recordId} className="border-ink/10 border-b pb-3 last:border-0">
-            <p className="text-sm">
-              {STAGE_NAMES[record.stage]} · {record.actionName}
-            </p>
-            <p className="text-ink-secondary mt-1 text-xs leading-5">
-              {record.discoveredHint}
-            </p>
-            <p className="mt-1 text-xs leading-5">{record.narrative}</p>
-          </div>
-        ))}
+        {history.map((record) => {
+          if (record.kind === 'observation') {
+            return (
+              <div
+                key={record.recordId}
+                className="border-ink/10 border-b pb-3 last:border-0"
+              >
+                <p className="text-sm">
+                  {STAGE_NAMES[record.stage]} · {record.observationName}
+                </p>
+                <p className="mt-1 text-xs leading-5">{record.narrative}</p>
+              </div>
+            );
+          }
+          if (record.kind === 'consultation') {
+            return (
+              <div
+                key={record.recordId}
+                className="border-ink/10 border-b pb-3 last:border-0"
+              >
+                <p className="text-sm">
+                  {STAGE_NAMES[record.stage]} · 请教执事
+                </p>
+                <p className="text-ink-secondary mt-1 text-xs leading-5">
+                  问：{record.question}
+                </p>
+                <p className="mt-1 text-xs leading-5">答：{record.reply}</p>
+              </div>
+            );
+          }
+          return (
+            <div
+              key={record.recordId}
+              className="border-ink/10 border-b pb-3 last:border-0"
+            >
+              <p className="text-sm">
+                {STAGE_NAMES[record.stage]} · {record.actionName}
+              </p>
+              <p className="text-ink-secondary mt-1 text-xs leading-5">
+                {record.discoveredHint}
+              </p>
+              <p className="mt-1 text-xs leading-5">{record.narrative}</p>
+            </div>
+          );
+        })}
       </div>
     </div>
   );
@@ -610,12 +770,17 @@ function SeedList({ state }: { state: HerbGardenState }) {
       {state.seeds.map((seed) => (
         <div key={seed.materialId} className="border-ink/10 border-b py-3">
           <div className="flex justify-between gap-4 text-sm">
-            <span>{seed.name} · {seed.rank}</span>
+            <span>
+              {seed.name} · {seed.rank}
+            </span>
             <span className="text-ink-secondary">余 {seed.quantity}</span>
           </div>
           <p className="text-ink-secondary mt-1 text-xs leading-5">
             {seed.description ?? '种性征兆尚未记入谱录。'}
           </p>
+          {seed.lockedReason ? (
+            <p className="text-crimson mt-1 text-xs">{seed.lockedReason}</p>
+          ) : null}
         </div>
       ))}
     </div>
@@ -659,8 +824,14 @@ function FriendList({
           onClick={() => onVisit(friend.cultivatorId)}
           className="border-ink/10 hover:bg-ink/[0.035] flex w-full justify-between border-b py-3 text-left text-sm transition-colors"
         >
-          <span>{friend.name} · {friend.realm}</span>
-          <span className={friend.readyPlots ? 'text-crimson' : 'text-ink-secondary'}>
+          <span>
+            {friend.name} · {friend.realm}
+          </span>
+          <span
+            className={
+              friend.readyPlots ? 'text-crimson' : 'text-ink-secondary'
+            }
+          >
             {friend.readyPlots
               ? `${friend.readyPlots} 畦成熟`
               : friend.growingPlots
@@ -683,7 +854,7 @@ function QuietSelect({
 }: {
   label: string;
   value: string;
-  options: Array<{ value: string; label: string }>;
+  options: Array<{ value: string; label: string; disabled?: boolean }>;
   onChange(value: string): void;
 }) {
   return (
@@ -696,7 +867,11 @@ function QuietSelect({
       >
         {!options.length ? <option value="">暂无可选项</option> : null}
         {options.map((option) => (
-          <option key={option.value} value={option.value}>
+          <option
+            key={option.value}
+            value={option.value}
+            disabled={option.disabled}
+          >
             {option.label}
           </option>
         ))}
@@ -712,7 +887,9 @@ function costLabel(method: CultivationMethodDefinition): string {
   if (cost.kind === 'spirit_stones') return `${cost.amount} 灵石`;
   if (cost.kind === 'mp') return `${cost.amount} 法力`;
   const material = `${cost.amount} 份${materialTypeLabel(cost.materialType)}`;
-  return cost.spiritStones ? `${material}，${cost.spiritStones} 灵石` : material;
+  return cost.spiritStones
+    ? `${material}，${cost.spiritStones} 灵石`
+    : material;
 }
 
 function materialTypeLabel(type: Exclude<MaterialType, 'seed'>): string {

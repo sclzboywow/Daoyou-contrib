@@ -6,17 +6,22 @@ import {
   type ActiveHerbGardenStage,
   type HerbGardenOutcomeKind,
   type HerbGardenStageRecord,
+  type SpiritSeedSpec,
   type StageAssessment,
   type StageRuleResolution,
-  type SpiritSeedSpec,
 } from '@shared/contracts/herbGarden';
 import type { ElementType, Quality } from '@shared/types/constants';
+import type { ConditionOperation } from '@shared/types/consumable';
 import { z } from 'zod';
 
 const stageAssessmentSchema = z
   .object({
     fit: z.enum(STAGE_ASSESSMENT_VALUES),
-    manifestation: z.string().min(2).max(40).regex(/^[a-z0-9_]+$/),
+    manifestation: z
+      .string()
+      .min(2)
+      .max(40)
+      .regex(/^[a-z0-9_]+$/),
     discoveredHint: z.string().min(12).max(80),
     narrative: z.string().min(20).max(140),
   })
@@ -27,6 +32,13 @@ const outcomeNamingSchema = z
     name: z.string().min(2).max(12),
     description: z.string().min(20).max(140),
   })
+  .strict();
+
+const observationSchema = z
+  .object({ text: z.string().min(12).max(140) })
+  .strict();
+const consultationSchema = z
+  .object({ reply: z.string().min(12).max(180) })
   .strict();
 
 export interface HerbGardenStageNarrative {
@@ -43,7 +55,10 @@ export interface HerbGardenOutcomeCopy {
 
 const DEFAULT_TIMEOUT_MS = 30_000;
 
-async function withTimeout<T>(promise: Promise<T>, message: string): Promise<T> {
+async function withTimeout<T>(
+  promise: Promise<T>,
+  message: string,
+): Promise<T> {
   let timeout: ReturnType<typeof setTimeout> | undefined;
   try {
     return await Promise.race([
@@ -121,7 +136,10 @@ export const HerbGardenNarrativeService = {
         narrative: result.output.narrative,
       };
     } catch (error) {
-      console.error('[HerbGardenNarrativeService] stage narrative failed:', error);
+      console.error(
+        '[HerbGardenNarrativeService] stage narrative failed:',
+        error,
+      );
       return null;
     }
   },
@@ -137,6 +155,7 @@ export const HerbGardenNarrativeService = {
     quality: Quality;
     quantity: number;
     history: HerbGardenStageRecord[];
+    operations?: ConditionOperation[];
   }): Promise<HerbGardenOutcomeCopy | null> {
     try {
       const { system, user } = renderPrompt('spirit-plant-outcome-naming', {
@@ -146,6 +165,7 @@ export const HerbGardenNarrativeService = {
             kind: input.kind,
             quality: input.quality,
             quantity: input.quantity,
+            operations: input.operations,
           },
           cultivationHistory: input.history.map((record) => ({
             stage: record.stage,
@@ -169,7 +189,82 @@ export const HerbGardenNarrativeService = {
       );
       return result.output;
     } catch (error) {
-      console.error('[HerbGardenNarrativeService] outcome naming failed:', error);
+      console.error(
+        '[HerbGardenNarrativeService] outcome naming failed:',
+        error,
+      );
+      return null;
+    }
+  },
+
+  async narrateObservation(input: {
+    seedName: string;
+    seedDescription?: string;
+    stage: ActiveHerbGardenStage;
+    observationName: string;
+    safeFact: string;
+  }): Promise<string | null> {
+    try {
+      const { system, user } = renderPrompt('spirit-plant-observation', {
+        factsJson: stableCompactStringify({
+          seedName: input.seedName,
+          seedDescription: truncateText(input.seedDescription ?? '', 120),
+          stage: input.stage,
+          observationName: input.observationName,
+          safeFact: input.safeFact,
+        }),
+      });
+      const result = await withTimeout(
+        generateAiObject({
+          system,
+          prompt: user,
+          schema: observationSchema,
+          name: 'SpiritPlantObservation',
+          sceneId: 'spirit-plant-observation',
+          maxOutputTokens: 600,
+        }),
+        'LLM spirit plant observation timeout',
+      );
+      return result.output.text;
+    } catch (error) {
+      console.error('[HerbGardenNarrativeService] observation failed:', error);
+      return null;
+    }
+  },
+
+  async answerConsultation(input: {
+    seedName: string;
+    seedDescription?: string;
+    stage: ActiveHerbGardenStage;
+    question: string;
+    discoveredClues: string[];
+  }): Promise<string | null> {
+    try {
+      const { system, user } = renderPrompt('spirit-plant-consultation', {
+        factsJson: stableCompactStringify({
+          seedName: input.seedName,
+          seedDescription: truncateText(input.seedDescription ?? '', 120),
+          stage: input.stage,
+          question: truncateText(input.question, 160),
+          discoveredClues: input.discoveredClues.map((clue) =>
+            truncateText(clue, 120),
+          ),
+        }),
+      });
+      const result = await withTimeout(
+        generateAiObject({
+          system,
+          prompt: user,
+          schema: consultationSchema,
+          name: 'SpiritPlantConsultation',
+          sceneId: 'spirit-plant-consultation',
+          maxOutputTokens: 700,
+        }),
+        'LLM spirit plant consultation timeout',
+      );
+      return result.output.reply;
+    } catch (error) {
+      console.error('[HerbGardenNarrativeService] consultation failed:', error);
       return null;
     }
   },

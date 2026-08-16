@@ -97,10 +97,6 @@ inventoryRouter.get('/', requireActiveCultivatorRef(), async (c) => {
     100,
     Math.max(1, parseInt(c.req.query('pageSize') || '20', 10)),
   );
-  const consumableKind = c.req.query('consumableKind');
-  if (consumableKind && consumableKind !== 'pill') {
-    return c.json({ success: false, error: '无效的消耗品分类' }, 400);
-  }
   let materialTypes: MaterialType[] | undefined;
   let excludeMaterialTypes: MaterialType[] | undefined;
   let materialRanks: Quality[] | undefined;
@@ -147,6 +143,16 @@ inventoryRouter.get('/', requireActiveCultivatorRef(), async (c) => {
   const validSortOrder = ['asc', 'desc'] as const;
   const materialSortBy = c.req.query('materialSortBy');
   const materialSortOrder = c.req.query('materialSortOrder');
+  const consumableKind = c.req.query('consumableKind');
+  const validConsumableKinds = ['pill', 'spirit_fruit', 'talisman'] as const;
+  if (
+    consumableKind &&
+    !validConsumableKinds.includes(
+      consumableKind as (typeof validConsumableKinds)[number],
+    )
+  ) {
+    return c.json({ success: false, error: '无效的消耗品类型' }, 400);
+  }
   if (
     materialSortBy &&
     !validSortBy.includes(materialSortBy as (typeof validSortBy)[number])
@@ -183,7 +189,8 @@ inventoryRouter.get('/', requireActiveCultivatorRef(), async (c) => {
     materialElements,
     materialSortBy: materialSortBy as (typeof validSortBy)[number] | undefined,
     materialSortOrder: materialSortOrder as 'asc' | 'desc' | undefined,
-    consumableKind: consumableKind as 'pill' | undefined,
+    consumableKind: consumableKind as
+      'pill' | 'spirit_fruit' | 'talisman' | undefined,
   };
   const scope = { kind: 'cultivator' as const, id: ref.cultivatorId };
   if (type === 'artifacts') {
