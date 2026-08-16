@@ -57,8 +57,10 @@ import type {
 } from '@shared/types/constants';
 import type { SpiritFruitSpec } from '@shared/types/consumable';
 import { and, desc, eq, gt, inArray, lte, sql } from 'drizzle-orm';
+import { randomUUID } from 'node:crypto';
 import { ConditionService } from './ConditionService';
 import { HerbGardenNarrativeService } from './HerbGardenNarrativeService';
+import { QiInsufficientError, QiService } from './QiService';
 import { loadCultivatorCombatInput } from './cultivator/CultivatorCombatProjectionReader';
 import { addMaterialStackToInventory } from './materialInventory';
 
@@ -417,17 +419,30 @@ async function payMethodCost(
   const cost = method.cost;
   if (cost.kind === 'time') return {};
   if (cost.kind === 'qi') {
-    const [paid] = await tx
-      .update(cultivators)
-      .set({ qi: sql`${cultivators.qi} - ${cost.amount}` })
-      .where(
-        and(
-          eq(cultivators.id, cultivatorId),
-          sql`${cultivators.qi} >= ${cost.amount}`,
-        ),
-      )
-      .returning({ id: cultivators.id });
-    if (!paid) throw new HerbGardenError(`天地灵气不足 ${cost.amount} 点`, 409);
+    const actionInstanceId = `herb-garden:${randomUUID()}`;
+    try {
+      await QiService.reserveQi({
+        cultivatorId,
+        action: 'herb_garden_qi_acceleration',
+        actionInstanceId,
+        cost: cost.amount,
+        metadata: { methodId },
+        tx,
+      });
+      await QiService.commitReservation({
+        actionInstanceId,
+        metadata: { methodId },
+        tx,
+      });
+    } catch (error) {
+      if (error instanceof QiInsufficientError) {
+        throw new HerbGardenError(
+          `天地灵气不足 ${cost.amount} 点（当前 ${error.current} 点）`,
+          409,
+        );
+      }
+      throw error;
+    }
     return {};
   }
   if (cost.kind === 'spirit_stones') {

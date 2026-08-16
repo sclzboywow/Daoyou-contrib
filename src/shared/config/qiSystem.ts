@@ -17,6 +17,7 @@ export const QI_ACTION_COSTS = {
   creation_skill: 8,
   marrow_wash_breakthrough: 20,
   market_identify: 1,
+  herb_garden_qi_acceleration: 20,
 } as const;
 
 export type QiAction = keyof typeof QI_ACTION_COSTS;

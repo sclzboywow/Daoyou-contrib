@@ -1,3 +1,4 @@
+import { QI_ACTION_COSTS } from '@shared/config/qiSystem';
 import {
   CULTIVATION_METHODS,
   FORMATION_METHODS,
@@ -37,6 +38,16 @@ describe('spirit herb garden domain', () => {
     expect(
       CULTIVATION_METHODS.every((method) => method.stages.length > 0),
     ).toBe(true);
+  });
+
+  it('keeps qi acceleration aligned with the unified qi ledger cost', () => {
+    const acceleration = CULTIVATION_METHODS.find(
+      (method) => method.id === 'qi_acceleration',
+    );
+    expect(acceleration?.cost).toEqual({
+      kind: 'qi',
+      amount: QI_ACTION_COSTS.herb_garden_qi_acceleration,
+    });
   });
 
   it('keeps LLM assessment inside deterministic rule bounds', () => {
